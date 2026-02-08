@@ -16,6 +16,8 @@ const API_CONFIG = {
 let currentUser = null;
 let rankingData = [];
 let moviesCache = {};
+let actorsCache = {};
+let currentRankingFilter = 'all';
 
 // ===== Firebase References =====
 const rankingRef = window.db ? window.db.ref('ranking') : null;
@@ -39,7 +41,9 @@ const elements = {
     searchResults: document.getElementById('searchResults'),
     rankingGrid: document.getElementById('rankingGrid'),
     wishlistGrid: document.getElementById('wishlistGrid'),
-    movieDetailContent: document.getElementById('movieDetailContent')
+    wishlistGrid: document.getElementById('wishlistGrid'),
+    movieDetailContent: document.getElementById('movieDetailContent'),
+    actorDetailView: document.getElementById('actorDetailView')
 };
 
 // ===== Utility Functions =====
@@ -163,8 +167,10 @@ function restoreView(state) {
         case 'search': showSearchView(false); break;
         case 'ranking': showRankingView(false); break;
         case 'wishlist': showWishlistView(false); break;
+        case 'wishlist': showWishlistView(false); break;
         case 'profile': showProfileView(false); break;
         case 'movie': showMovieDetail(state.movieId, false); break;
+        case 'actor': showActorDetail(state.personId, false); break;
         default: showHomeView(false);
     }
 }
@@ -176,6 +182,7 @@ function hideAllViews() {
     elements.movieDetailView.classList.add('hidden');
     elements.wishlistView.classList.add('hidden');
     elements.profileView.classList.add('hidden');
+    elements.actorDetailView.classList.add('hidden');
 
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('text-accent-yellow');
@@ -406,10 +413,18 @@ function renderFavoritosCarousel() {
 // ===== Ranking =====
 
 function renderRankingGrid() {
-    const totalVotes = rankingData.reduce((sum, m) => sum + (m.votes || 0), 0);
+    // Sort by votes (descending)
+    let movies = [...rankingData].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+
+    // Filter by user
+    if (currentRankingFilter !== 'all') {
+        movies = movies.filter(m => m.addedBy === currentRankingFilter);
+    }
+
+    const totalVotes = rankingData.reduce((sum, movie) => sum + (movie.votes || 0), 0);
     document.getElementById('rankingTotalVotes').textContent = `${totalVotes} votos totales`;
 
-    if (rankingData.length === 0) {
+    if (movies.length === 0) {
         elements.rankingGrid.innerHTML = `
             <div class="col-span-2 text-center py-16">
                 <div class="text-6xl mb-4">🎬</div>
@@ -422,7 +437,23 @@ function renderRankingGrid() {
         return;
     }
 
-    elements.rankingGrid.innerHTML = rankingData.map((movie, index) => createMovieCard(movie, index + 1)).join('');
+    elements.rankingGrid.innerHTML = movies.map((movie, index) => createMovieCard(movie, index + 1)).join('');
+}
+
+function setRankingFilter(filter) {
+    currentRankingFilter = filter;
+
+    // Update UI
+    ['all', 'Ger', 'Magui'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (f === filter) {
+            btn.className = 'px-3 py-1.5 rounded-full text-xs font-medium bg-white text-dark-900 border border-white transition-colors';
+        } else {
+            btn.className = 'px-3 py-1.5 rounded-full text-xs font-medium bg-dark-700 text-gray-400 border border-transparent transition-colors';
+        }
+    });
+
+    renderRankingGrid();
 }
 
 function createMovieCard(movie, rank) {
@@ -617,19 +648,162 @@ function renderMovieDetail(movie) {
                 <div>
                     <h3 class="text-lg font-semibold mb-3">Reparto</h3>
                     <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                         ${cast.map(actor => `
-                            <div class="flex-shrink-0 w-20 text-center">
+                            <div class="flex-shrink-0 w-20 text-center cursor-pointer" onclick="showActorDetail(${actor.id})">
                                 ${actor.profile_path
-                ? `<img src="${API_CONFIG.imageBaseUrl}/w185${actor.profile_path}" alt="${actor.name}" class="w-16 h-16 rounded-full object-cover mx-auto mb-2">`
-                : `<div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mx-auto mb-2 text-xl">👤</div>`
+                ? `<img src="${API_CONFIG.imageBaseUrl}/w185${actor.profile_path}" alt="${actor.name}" class="w-16 h-16 rounded-full object-cover mx-auto mb-2 border border-white/10">`
+                : `<div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mx-auto mb-2 text-xl border border-white/10">👤</div>`
             }
-                                <p class="text-xs font-medium truncate">${actor.name}</p>
+                                <p class="text-xs font-medium truncate hover:text-accent-purple transition-colors">${actor.name}</p>
                                 <p class="text-xs text-gray-500 truncate">${actor.character}</p>
                             </div>
                         `).join('')}
                     </div>
+                    </div>
                 </div>
             ` : ''}
+        </div>
+    `;
+}
+
+// ===== Actor Detail =====
+
+function showActorDetail(personId, pushState = true) {
+    if (pushState) history.pushState({ view: 'actor', personId }, '', `#actor-${personId}`);
+    hideAllViews();
+    elements.actorDetailView.classList.remove('hidden');
+    document.getElementById('votesChip').classList.remove('hidden');
+    loadActorDetail(personId);
+}
+
+async function loadActorDetail(personId) {
+    // Check cache
+    if (actorsCache[personId] && (Date.now() - actorsCache[personId].timestamp < 1000 * 60 * 60)) {
+        renderActorDetail(actorsCache[personId].data);
+        return;
+    }
+
+    toggleLoader(true);
+    elements.actorDetailView.innerHTML = ''; // Clear previous
+
+    try {
+        const [person, credits] = await Promise.all([
+            fetchFromTMDB(`/person/${personId}`),
+            fetchFromTMDB(`/person/${personId}/movie_credits`)
+        ]);
+
+        const data = { person, credits };
+        actorsCache[personId] = { data, timestamp: Date.now() };
+        renderActorDetail(data);
+
+    } catch (error) {
+        console.error('Error loading actor:', error);
+        elements.actorDetailView.innerHTML = `
+            <div class="h-screen flex flex-col items-center justify-center p-4">
+                <p class="text-red-400 mb-4">Error al cargar el perfil</p>
+                <button onclick="navigateBack()" class="px-6 py-2 bg-dark-700 rounded-xl">Volver</button>
+            </div>
+        `;
+    } finally {
+        toggleLoader(false);
+    }
+}
+
+function renderActorDetail({ person, credits }) {
+    const profileUrl = person.profile_path
+        ? `${API_CONFIG.imageBaseUrl}/h632${person.profile_path}`
+        : null;
+
+    // Filter and sort movies (only released, sorted by date desc)
+    const movies = (credits.cast || [])
+        .filter(m => m.release_date)
+        .sort((a, b) => new Date(b.release_date) - new Date(a.release_date));
+
+    // Remove duplicates (sometimes API returns same movie for different roles)
+    const uniqueMovies = [];
+    const seenIds = new Set();
+
+    for (const movie of movies) {
+        if (!seenIds.has(movie.id)) {
+            uniqueMovies.push(movie);
+            seenIds.add(movie.id);
+        }
+    }
+
+    elements.actorDetailView.innerHTML = `
+        <!-- Header -->
+        <div class="sticky top-0 z-40 bg-dark-900/95 backdrop-blur px-4 py-3 flex items-center gap-3 border-b border-white/5">
+            <button onclick="navigateBack()" class="w-10 h-10 flex items-center justify-center -ml-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </button>
+            <h1 class="text-lg font-bold truncate flex-1">${person.name}</h1>
+        </div>
+
+        <div class="p-4">
+            <!-- Profile Info -->
+            <div class="flex gap-4 mb-6">
+                <div class="flex-shrink-0">
+                    ${profileUrl
+            ? `<img src="${profileUrl}" alt="${person.name}" class="w-28 h-40 object-cover rounded-xl shadow-lg border border-white/10">`
+            : `<div class="w-28 h-40 bg-dark-700 rounded-xl flex items-center justify-center text-4xl border border-white/10">👤</div>`
+        }
+                </div>
+                <div class="flex-1 min-w-0 py-1">
+                    <h2 class="text-2xl font-bold mb-2 leading-tight">${person.name}</h2>
+                    <p class="text-gray-400 text-sm mb-1">Born: ${person.birthday ? new Date(person.birthday).getFullYear() : 'N/A'}</p>
+                    <p class="text-gray-400 text-sm mb-3">${person.place_of_birth || ''}</p>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="px-2 py-1 bg-dark-700 rounded-lg">Known for: ${person.known_for_department}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Biography -->
+            ${person.biography ? `
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-2">Biografía</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed max-h-40 overflow-y-auto pr-2 scrollbar-thin">${person.biography}</p>
+                </div>
+            ` : ''}
+
+            <!-- Filmography -->
+            <div>
+                <h3 class="text-lg font-semibold mb-3 flex items-center justify-between">
+                    Filmografía
+                    <span class="text-sm font-normal text-gray-500">${uniqueMovies.length} películas</span>
+                </h3>
+                
+                <div class="grid grid-cols-1 gap-3">
+                    ${uniqueMovies.map(movie => {
+            const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+            const posterUrl = movie.poster_path ? `${API_CONFIG.imageBaseUrl}/w92${movie.poster_path}` : null;
+
+            return `
+                            <div class="flex items-center gap-3 p-3 bg-dark-700/50 rounded-xl active:bg-dark-600 transition-colors cursor-pointer" onclick="showMovieDetail(${movie.id})">
+                                ${posterUrl
+                    ? `<img src="${posterUrl}" alt="" class="w-12 h-16 rounded-lg object-cover">`
+                    : `<div class="w-12 h-16 rounded-lg bg-dark-600 flex items-center justify-center text-xl">🎬</div>`
+                }
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="font-medium truncate text-white">${movie.title}</h4>
+                                    <div class="flex items-center gap-2 text-sm text-gray-400">
+                                        <span>${year}</span>
+                                        ${movie.character ? `<span class="text-gray-600">•</span> <span class="truncate text-gray-500">as ${movie.character}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="text-gray-500">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        `;
+        }).join('')}
+                </div>
+            </div>
         </div>
     `;
 }

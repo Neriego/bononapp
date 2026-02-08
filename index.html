@@ -161,15 +161,33 @@
 
         <!-- Ranking View -->
         <div id="rankingView" class="hidden">
-            <div class="sticky top-0 z-40 bg-dark-900 px-4 py-3 flex items-center gap-3 border-b border-transparent">
-                <button onclick="navigateBack()" class="w-10 h-10 flex items-center justify-center -ml-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7">
-                        </path>
-                    </svg>
-                </button>
-                <h1 class="text-xl font-bold">🏆 Ranking</h1>
-                <span id="rankingTotalVotes" class="ml-auto text-sm text-gray-400"></span>
+            <div class="sticky top-0 z-40 bg-dark-900/95 backdrop-blur border-b border-white/5 pb-2">
+                <div class="px-4 py-3 flex items-center gap-3">
+                    <button onclick="navigateBack()" class="w-10 h-10 flex items-center justify-center -ml-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <h1 class="text-xl font-bold">🏆 Ranking</h1>
+                    <span id="rankingTotalVotes" class="ml-auto text-sm text-gray-400"></span>
+                </div>
+
+                <!-- Filters -->
+                <div class="px-4 flex gap-2 overflow-x-auto scrollbar-hide">
+                    <button onclick="setRankingFilter('all')" id="filter-all"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium bg-white text-dark-900 border border-white transition-colors">
+                        Todos
+                    </button>
+                    <button onclick="setRankingFilter('Ger')" id="filter-Ger"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium bg-dark-700 text-gray-400 border border-transparent transition-colors">
+                        Ger
+                    </button>
+                    <button onclick="setRankingFilter('Magui')" id="filter-Magui"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium bg-dark-700 text-gray-400 border border-transparent transition-colors">
+                        Magui
+                    </button>
+                </div>
             </div>
             <div id="rankingGrid" class="grid grid-cols-2 gap-3 p-4">
                 <!-- Full ranking grid injected by JS -->
@@ -265,6 +283,11 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- Actor Detail View -->
+        <div id="actorDetailView" class="hidden pb-20">
+            <!-- Content injected by JS -->
         </div>
 
         <!-- Bottom Navigation -->
