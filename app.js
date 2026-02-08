@@ -82,8 +82,15 @@ function checkAuth() {
         elements.loginModal.classList.add('hidden');
         elements.mainApp.classList.remove('hidden');
         setupFirebaseListeners();
+        // Allow a small delay for initial renders or keep loader until data? 
+        // For now, hiding it here prevents the "flash" of the login modal.
         showHomeView();
     }
+
+    // Always hide loader after determining state
+    setTimeout(() => {
+        toggleLoader(false);
+    }, 500); // Pequeño delay para suavizar la transición
 }
 
 async function initializeUserVotes(username) {
