@@ -186,7 +186,7 @@ function hideAllViews() {
 
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('text-accent-yellow');
-        item.classList.add('text-gray-500');
+        item.classList.add('text-white');
     });
 }
 
@@ -194,7 +194,7 @@ function showHomeView(pushState = true) {
     if (pushState) history.pushState({ view: 'home' }, '', '#home');
     hideAllViews();
     elements.homeView.classList.remove('hidden');
-    document.getElementById('navHome').classList.remove('text-gray-500');
+    document.getElementById('navHome').classList.remove('text-white');
     document.getElementById('navHome').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     updateHomeView();
@@ -204,7 +204,7 @@ function showSearchView(pushState = true) {
     if (pushState) history.pushState({ view: 'search' }, '', '#search');
     hideAllViews();
     elements.searchView.classList.remove('hidden');
-    document.getElementById('navSearch').classList.remove('text-gray-500');
+    document.getElementById('navSearch').classList.remove('text-white');
     document.getElementById('navSearch').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.add('hidden'); // Hide votes chip
 }
@@ -217,6 +217,8 @@ function showRankingView(pushState = true) {
     if (pushState) history.pushState({ view: 'ranking' }, '', '#ranking');
     hideAllViews();
     elements.rankingView.classList.remove('hidden');
+    document.getElementById('navRanking').classList.remove('text-white');
+    document.getElementById('navRanking').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     renderRankingGrid();
 }
@@ -229,8 +231,9 @@ function showWishlistView(pushState = true) {
     if (pushState) history.pushState({ view: 'wishlist' }, '', '#wishlist');
     hideAllViews();
     elements.wishlistView.classList.remove('hidden');
-    document.getElementById('navWishlist').classList.remove('text-gray-500');
-    document.getElementById('navWishlist').classList.add('text-accent-yellow');
+    // Nav item removed from bottom bar
+    // document.getElementById('navWishlist').classList.remove('text-white');
+    // document.getElementById('navWishlist').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     renderWishlistGrid();
 }
@@ -239,7 +242,7 @@ function showProfileView(pushState = true) {
     if (pushState) history.pushState({ view: 'profile' }, '', '#profile');
     hideAllViews();
     elements.profileView.classList.remove('hidden');
-    document.getElementById('navProfile').classList.remove('text-gray-500');
+    document.getElementById('navProfile').classList.remove('text-white');
     document.getElementById('navProfile').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     updateProfileView();

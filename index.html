@@ -39,7 +39,7 @@
                     },
                     colors: {
                         'dark': {
-                            900: '#0a0a0f',
+                            900: '#000000',
                             800: '#12121a',
                             700: '#1a1a25',
                             600: '#252533',
@@ -291,7 +291,7 @@
         </div>
 
         <!-- Bottom Navigation -->
-        <nav class="fixed bottom-0 left-0 right-0 bg-dark-800 border-t border-white/10 z-50">
+        <nav class="fixed bottom-0 left-0 right-0 bg-dark-900 border-t border-white/10 z-50">
             <div class="flex items-center justify-around py-2">
                 <button onclick="showHomeView()" class="nav-item flex flex-col items-center gap-1 px-4 py-2"
                     id="navHome">
@@ -308,13 +308,14 @@
                     </svg>
                     <span class="text-xs">Buscar</span>
                 </button>
-                <button onclick="showWishlistView()" class="nav-item flex flex-col items-center gap-1 px-4 py-2"
-                    id="navWishlist">
+                <button onclick="showRankingView()" class="nav-item flex flex-col items-center gap-1 px-4 py-2"
+                    id="navRanking">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z">
+                        </path>
                     </svg>
-                    <span class="text-xs">Mi lista</span>
+                    <span class="text-xs">Ranking</span>
                 </button>
                 <button onclick="showProfileView()" class="nav-item flex flex-col items-center gap-1 px-4 py-2"
                     id="navProfile">
