@@ -242,7 +242,7 @@
                 </div>
 
                 <!-- Votes Management -->
-                <div class="bg-dark-700 rounded-2xl p-4 mb-4">
+                <div id="votesManagementSection" class="bg-dark-700 rounded-2xl p-4 mb-4">
                     <h3 class="font-semibold mb-4">Gestión de Votos</h3>
 
                     <div class="flex items-center justify-between py-3 border-b border-white/10">
@@ -272,12 +272,16 @@
                     </div>
                 </div>
 
-                <!-- Actions -->
-                <div class="bg-dark-700 rounded-2xl p-4 mb-4">
+                <!-- Admin Actions -->
+                <div id="adminActionsSection" class="bg-dark-700 rounded-2xl p-4 mb-4">
                     <button onclick="resetRanking()"
-                        class="w-full py-3 bg-red-500/20 text-red-400 rounded-xl font-medium mb-3">
+                        class="w-full py-3 bg-red-500/20 text-red-400 rounded-xl font-medium">
                         🗑️ Borrar Todo el Ranking
                     </button>
+                </div>
+
+                <!-- General Actions -->
+                <div class="bg-dark-700 rounded-2xl p-4 mb-4">
                     <button onclick="logout()" class="w-full py-3 bg-dark-600 rounded-xl font-medium">
                         👋 Cambiar Usuario
                     </button>

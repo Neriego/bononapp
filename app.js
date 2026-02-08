@@ -1084,6 +1084,19 @@ async function updateProfileView() {
 
     document.getElementById('gerVotesDisplay').textContent = `${gerVotes} votos`;
     document.getElementById('maguiVotesDisplay').textContent = `${maguiVotes} votos`;
+
+    // Admin restrictions
+    const isAdmin = currentUser === 'Ger';
+    const votesSection = document.getElementById('votesManagementSection');
+    const adminSection = document.getElementById('adminActionsSection');
+
+    if (isAdmin) {
+        votesSection.classList.remove('hidden');
+        adminSection.classList.remove('hidden');
+    } else {
+        votesSection.classList.add('hidden');
+        adminSection.classList.add('hidden');
+    }
 }
 
 async function getRemainingVotes(username) {
