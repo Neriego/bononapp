@@ -48,12 +48,9 @@ const elements = {
 
 // ===== Utility Functions =====
 
-function getCurrentWeek() {
+function getCurrentMonth() {
     const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    const diff = now - start;
-    const oneWeek = 1000 * 60 * 60 * 24 * 7;
-    return `${now.getFullYear()}-W${Math.floor(diff / oneWeek).toString().padStart(2, '0')}`;
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
 }
 
 function getOtherUser() {
@@ -99,12 +96,12 @@ function checkAuth() {
 
 async function initializeUserVotes(username) {
     if (!votesRef) return;
-    const currentWeek = getCurrentWeek();
+    const currentMonth = getCurrentMonth();
     const snapshot = await votesRef.child(username).once('value');
     const data = snapshot.val();
 
-    if (!data || data.week !== currentWeek) {
-        await votesRef.child(username).set({ week: currentWeek, remaining: 5 });
+    if (!data || data.month !== currentMonth) {
+        await votesRef.child(username).set({ month: currentMonth, remaining: 5 });
     }
 }
 
@@ -976,22 +973,22 @@ async function resetRanking() {
 async function voteForMovie(movieId) {
     if (!currentUser || !votesRef || !rankingRef) return;
 
-    const currentWeek = getCurrentWeek();
+    const currentMonth = getCurrentMonth();
     const userVotesSnapshot = await votesRef.child(currentUser).once('value');
-    let userData = userVotesSnapshot.val() || { week: currentWeek, remaining: 5 };
+    let userData = userVotesSnapshot.val() || { month: currentMonth, remaining: 5 };
 
-    if (userData.week !== currentWeek) {
-        userData = { week: currentWeek, remaining: 5 };
+    if (userData.month !== currentMonth) {
+        userData = { month: currentMonth, remaining: 5 };
     }
 
     if (userData.remaining <= 0) {
-        alert('¡Ya usaste todos tus votos de esta semana! 🗳️');
+        alert('¡Ya usaste todos tus votos holuuu de este mes! 🗳️');
         return;
     }
 
     // Decrease user votes
     await votesRef.child(currentUser).set({
-        week: currentWeek,
+        month: currentMonth,
         remaining: userData.remaining - 1
     });
 
@@ -1023,18 +1020,18 @@ async function removeVoteFromMovie(movieId) {
         return;
     }
 
-    const currentWeek = getCurrentWeek();
+    const currentMonth = getCurrentMonth();
 
     // Return vote to user
     const userVotesSnapshot = await votesRef.child(currentUser).once('value');
-    let userData = userVotesSnapshot.val() || { week: currentWeek, remaining: 5 };
+    let userData = userVotesSnapshot.val() || { month: currentMonth, remaining: 5 };
 
-    if (userData.week !== currentWeek) {
-        userData = { week: currentWeek, remaining: 5 };
+    if (userData.month !== currentMonth) {
+        userData = { month: currentMonth, remaining: 5 };
     }
 
     await votesRef.child(currentUser).set({
-        week: currentWeek,
+        month: currentMonth,
         remaining: userData.remaining + 1
     });
 
@@ -1056,12 +1053,12 @@ async function removeVoteFromMovie(movieId) {
 async function adjustVotes(username, amount) {
     if (!votesRef) return;
 
-    const currentWeek = getCurrentWeek();
+    const currentMonth = getCurrentMonth();
     const snapshot = await votesRef.child(username).once('value');
-    let data = snapshot.val() || { week: currentWeek, remaining: 5 };
+    let data = snapshot.val() || { month: currentMonth, remaining: 5 };
 
-    if (data.week !== currentWeek) {
-        data = { week: currentWeek, remaining: 5 };
+    if (data.month !== currentMonth) {
+        data = { month: currentMonth, remaining: 5 };
     }
 
     data.remaining = Math.max(0, data.remaining + amount);
@@ -1102,11 +1099,11 @@ async function updateProfileView() {
 async function getRemainingVotes(username) {
     if (!votesRef) return 5;
 
-    const currentWeek = getCurrentWeek();
+    const currentMonth = getCurrentMonth();
     const snapshot = await votesRef.child(username).once('value');
     const data = snapshot.val();
 
-    if (!data || data.week !== currentWeek) {
+    if (!data || data.month !== currentMonth) {
         return 5;
     }
 
