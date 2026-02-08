@@ -18,6 +18,7 @@ let rankingData = [];
 let moviesCache = {};
 let actorsCache = {};
 let currentRankingFilter = 'all';
+let currentGenreFilter = 'all';
 
 // ===== Firebase References =====
 const rankingRef = window.db ? window.db.ref('ranking') : null;
@@ -119,6 +120,7 @@ function setupFirebaseListeners() {
 
         if (document.getElementById('rankingView').classList.contains('hidden') === false) {
             renderRankingGrid();
+            renderGenreFilters();
         }
     });
 
@@ -218,6 +220,7 @@ function showRankingView(pushState = true) {
     document.getElementById('navRanking').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     renderRankingGrid();
+    renderGenreFilters();
 }
 
 function hideRankingView() {
@@ -416,9 +419,13 @@ function renderRankingGrid() {
     // Sort by votes (descending)
     let movies = [...rankingData].sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
-    // Filter by user
     if (currentRankingFilter !== 'all') {
         movies = movies.filter(m => m.addedBy === currentRankingFilter);
+    }
+
+    // Filter by genre
+    if (currentGenreFilter !== 'all') {
+        movies = movies.filter(m => m.genres && m.genres.some(g => g.name === currentGenreFilter));
     }
 
     const totalVotes = rankingData.reduce((sum, movie) => sum + (movie.votes || 0), 0);
@@ -456,6 +463,44 @@ function setRankingFilter(filter) {
     });
 
     renderRankingGrid();
+}
+
+function setGenreFilter(genre) {
+    currentGenreFilter = genre;
+    renderGenreFilters();
+    renderRankingGrid();
+}
+
+function renderGenreFilters() {
+    const container = document.getElementById('genreFiltersContainer');
+    if (!container) return;
+
+    // Extract all genres from ranking
+    const allGenres = new Set();
+    rankingData.forEach(m => {
+        if (m.genres) {
+            m.genres.forEach(g => allGenres.add(g.name));
+        }
+    });
+
+    const genres = ['all', ...Array.from(allGenres).sort()];
+
+    container.innerHTML = genres.map(genre => {
+        const isSelected = currentGenreFilter === genre;
+        const label = genre === 'all' ? 'Todos' : genre;
+        // Escape special chars in ID
+        const idSafeGenre = genre.replace(/[^a-zA-Z0-9]/g, '');
+
+        return `
+            <button onclick="setGenreFilter('${genre}')" 
+                class="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected
+                ? 'bg-white text-dark-900 border-white'
+                : 'bg-dark-700 text-gray-400 border-transparent hover:bg-dark-600'
+            }">
+                ${label}
+            </button>
+        `;
+    }).join('');
 }
 
 function createMovieCard(movie, rank) {
@@ -914,6 +959,7 @@ async function addToRanking(movieId) {
             backdrop_path: movie.backdrop_path || null,
             release_date: movie.release_date || null,
             vote_average: movie.vote_average || 0,
+            genres: movie.genres || [],
             votes: 0,
             addedBy: currentUser,
             addedAt: Date.now()
