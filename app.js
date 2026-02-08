@@ -113,6 +113,23 @@ function setupFirebaseListeners() {
             renderRankingGrid();
         }
     });
+
+    // Listen for user votes changes
+    if (votesRef && currentUser) {
+        votesRef.child(currentUser).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                updateVotesChip(data.remaining || 0);
+            }
+        });
+    }
+}
+
+function updateVotesChip(remaining) {
+    const chip = document.getElementById('votesChipCount');
+    if (chip) {
+        chip.textContent = `${remaining} votos`;
+    }
 }
 
 // ===== Navigation =====
