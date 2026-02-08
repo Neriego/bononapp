@@ -495,14 +495,24 @@ function createWishlistMovieCard(movie, rank) {
     `;
 }
 
+// ===== Loader =====
+
+function toggleLoader(show) {
+    const loader = document.getElementById('loaderOverlay');
+    if (show) {
+        loader.classList.remove('hidden');
+    } else {
+        loader.classList.add('hidden');
+    }
+}
+
 // ===== Movie Detail =====
 
 async function loadMovieDetail(movieId) {
-    elements.movieDetailContent.innerHTML = `
-        <div class="h-screen flex items-center justify-center">
-            <div class="w-10 h-10 border-3 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div>
-        </div>
-    `;
+    toggleLoader(true);
+
+    // Clear previous content but keep structure
+    elements.movieDetailContent.innerHTML = '';
 
     try {
         const movie = await fetchFromTMDB(`/movie/${movieId}`, { append_to_response: 'credits' });
@@ -516,6 +526,8 @@ async function loadMovieDetail(movieId) {
                 <button onclick="showHomeView()" class="px-6 py-2 bg-dark-700 rounded-xl">Volver</button>
             </div>
         `;
+    } finally {
+        toggleLoader(false);
     }
 }
 
@@ -623,17 +635,15 @@ async function searchMovies(query) {
         return;
     }
 
-    elements.searchResults.innerHTML = `
-        <div class="flex justify-center py-8">
-            <div class="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div>
-        </div>
-    `;
+    toggleLoader(true);
 
     try {
         const data = await fetchFromTMDB('/search/movie', { query });
         renderSearchResults(data.results);
     } catch (error) {
         elements.searchResults.innerHTML = '<p class="text-center text-red-400 py-8">Error al buscar</p>';
+    } finally {
+        toggleLoader(false);
     }
 }
 
@@ -677,26 +687,35 @@ async function addToRanking(movieId) {
         return;
     }
 
-    let movie = moviesCache[movieId];
-    if (!movie) {
-        movie = await fetchFromTMDB(`/movie/${movieId}`);
-        moviesCache[movieId] = movie;
-    }
+    toggleLoader(true);
 
-    const movieData = {
-        id: movie.id,
-        title: movie.title,
-        poster_path: movie.poster_path || null,
-        backdrop_path: movie.backdrop_path || null,
-        release_date: movie.release_date || null,
-        vote_average: movie.vote_average || 0,
-        votes: 0,
-        addedBy: currentUser,
-        addedAt: Date.now()
-    };
+    try {
+        let movie = moviesCache[movieId];
+        if (!movie) {
+            movie = await fetchFromTMDB(`/movie/${movieId}`);
+            moviesCache[movieId] = movie;
+        }
 
-    if (rankingRef) {
-        await rankingRef.child(movie.id.toString()).set(movieData);
+        const movieData = {
+            id: movie.id,
+            title: movie.title,
+            poster_path: movie.poster_path || null,
+            backdrop_path: movie.backdrop_path || null,
+            release_date: movie.release_date || null,
+            vote_average: movie.vote_average || 0,
+            votes: 0,
+            addedBy: currentUser,
+            addedAt: Date.now()
+        };
+
+        if (rankingRef) {
+            await rankingRef.child(movie.id.toString()).set(movieData);
+        }
+    } catch (error) {
+        console.error('Error adding to ranking:', error);
+        alert('Error al agregar al ranking');
+    } finally {
+        toggleLoader(false);
     }
 }
 
