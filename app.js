@@ -116,7 +116,11 @@ function setupFirebaseListeners() {
         rankingData = data ? Object.values(data) : [];
         rankingData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
+        // Check for missing genres and backfill
+        fixMissingGenres(rankingData);
+
         updateHomeView();
+
 
         if (document.getElementById('rankingView').classList.contains('hidden') === false) {
             renderRankingGrid();
@@ -132,6 +136,42 @@ function setupFirebaseListeners() {
                 updateVotesChip(data.remaining || 0);
             }
         });
+    }
+}
+
+async function fixMissingGenres(data) {
+    if (!data || data.length === 0) return;
+
+    // Find movies without genres (or empty genres array)
+    const moviesWithoutGenres = data.filter(m => !m.genres || m.genres.length === 0);
+
+    if (moviesWithoutGenres.length === 0) return;
+
+    console.log(`OpenFix: Found ${moviesWithoutGenres.length} movies without genres. Fixing...`);
+
+    for (const movie of moviesWithoutGenres) {
+        try {
+            // Check cache first to avoid spamming API
+            let fullMovie = moviesCache[movie.id];
+
+            if (!fullMovie || !fullMovie.genres) {
+                fullMovie = await fetchFromTMDB(`/movie/${movie.id}`);
+                moviesCache[movie.id] = fullMovie;
+            }
+
+            if (fullMovie.genres && fullMovie.genres.length > 0) {
+                await rankingRef.child(movie.id.toString()).update({
+                    genres: fullMovie.genres
+                });
+                console.log(`Fixed genres for: ${movie.title}`);
+            }
+
+            // Small delay to be nice to API
+            await new Promise(r => setTimeout(r, 200));
+
+        } catch (error) {
+            console.error(`Failed to fix genres for movie ${movie.id}:`, error);
+        }
     }
 }
 
