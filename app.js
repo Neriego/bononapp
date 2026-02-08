@@ -182,6 +182,7 @@ function showHomeView(pushState = true) {
     elements.homeView.classList.remove('hidden');
     document.getElementById('navHome').classList.remove('text-gray-500');
     document.getElementById('navHome').classList.add('text-accent-yellow');
+    document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     updateHomeView();
 }
 
@@ -191,6 +192,7 @@ function showSearchView(pushState = true) {
     elements.searchView.classList.remove('hidden');
     document.getElementById('navSearch').classList.remove('text-gray-500');
     document.getElementById('navSearch').classList.add('text-accent-yellow');
+    document.getElementById('votesChip').classList.add('hidden'); // Hide votes chip
     document.getElementById('searchInput').focus();
 }
 
@@ -202,6 +204,7 @@ function showRankingView(pushState = true) {
     if (pushState) history.pushState({ view: 'ranking' }, '', '#ranking');
     hideAllViews();
     elements.rankingView.classList.remove('hidden');
+    document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     renderRankingGrid();
 }
 
@@ -215,6 +218,7 @@ function showWishlistView(pushState = true) {
     elements.wishlistView.classList.remove('hidden');
     document.getElementById('navWishlist').classList.remove('text-gray-500');
     document.getElementById('navWishlist').classList.add('text-accent-yellow');
+    document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     renderWishlistGrid();
 }
 
@@ -224,6 +228,7 @@ function showProfileView(pushState = true) {
     elements.profileView.classList.remove('hidden');
     document.getElementById('navProfile').classList.remove('text-gray-500');
     document.getElementById('navProfile').classList.add('text-accent-yellow');
+    document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     updateProfileView();
 }
 
@@ -231,6 +236,7 @@ function showMovieDetail(movieId, pushState = true) {
     if (pushState) history.pushState({ view: 'movie', movieId }, '', `#movie-${movieId}`);
     hideAllViews();
     elements.movieDetailView.classList.remove('hidden');
+    document.getElementById('votesChip').classList.remove('hidden'); // Show votes chip
     loadMovieDetail(movieId);
 }
 
