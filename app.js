@@ -12,247 +12,594 @@ const API_CONFIG = {
     language: 'es-ES'
 };
 
-// ===== DOM Elements =====
-const elements = {
-    loginModal: document.getElementById('loginModal'),
-    mainContent: document.getElementById('mainContent'),
-    sidebar: document.getElementById('sidebar'),
-    heroSection: document.getElementById('heroSection'),
-    moviesSection: document.getElementById('moviesSection'),
-    settingsSection: document.getElementById('settingsSection'),
-    searchModal: document.getElementById('searchModal'),
-    searchInput: document.getElementById('searchInput'),
-    searchBtn: document.getElementById('searchBtn'),
-    searchResults: document.getElementById('searchResults'),
-    moviesGrid: document.getElementById('moviesGrid'),
-    loadingIndicator: document.getElementById('loadingIndicator'),
-    sectionHeader: document.getElementById('sectionHeader'),
-    sectionTitle: document.getElementById('sectionTitle'),
-    sectionSubtitle: document.getElementById('sectionSubtitle'),
-    resultsCount: document.getElementById('resultsCount'),
-    emptyState: document.getElementById('emptyState'),
-    errorState: document.getElementById('errorState'),
-    errorMessage: document.getElementById('errorMessage'),
-    movieModal: document.getElementById('movieModal'),
-    modalContent: document.getElementById('modalContent'),
-    closeModal: document.getElementById('closeModal'),
-    // User elements
-    sidebarUsername: document.getElementById('sidebarUsername'),
-    sidebarVotes: document.getElementById('sidebarVotes'),
-    votesRemaining: document.getElementById('votesRemaining'),
-    welcomeUser: document.getElementById('welcomeUser'),
-    favoritesCount: document.getElementById('favoritesCount'),
-    rankingCount: document.getElementById('rankingCount'),
-    gerVotesDisplay: document.getElementById('gerVotesDisplay'),
-    maguiVotesDisplay: document.getElementById('maguiVotesDisplay'),
-    // Buttons
-    addToRankingBtn: document.getElementById('addToRankingBtn'),
-    rankingBtn: document.getElementById('rankingBtn'),
-    retryBtn: document.getElementById('retryBtn')
-};
-
-// ===== Genre Mapping =====
-const genreMap = {
-    28: 'Acción', 12: 'Aventura', 16: 'Animación', 35: 'Comedia',
-    80: 'Crimen', 99: 'Documental', 18: 'Drama', 10751: 'Familia',
-    14: 'Fantasía', 36: 'Historia', 27: 'Terror', 10402: 'Música',
-    9648: 'Misterio', 10749: 'Romance', 878: 'Ciencia Ficción',
-    10770: 'Película de TV', 53: 'Suspenso', 10752: 'Guerra', 37: 'Western'
-};
-
 // ===== State =====
-let currentView = 'home';
-let moviesCache = {};
+let currentUser = null;
 let rankingData = [];
+let moviesCache = {};
 
 // ===== Firebase References =====
 const rankingRef = window.db ? window.db.ref('ranking') : null;
 const votesRef = window.db ? window.db.ref('votes') : null;
 
-// ===== User Management =====
+// ===== DOM Elements =====
+const elements = {
+    loginModal: document.getElementById('loginModal'),
+    mainApp: document.getElementById('mainApp'),
+    homeView: document.getElementById('homeView'),
+    searchView: document.getElementById('searchView'),
+    rankingView: document.getElementById('rankingView'),
+    movieDetailView: document.getElementById('movieDetailView'),
+    wishlistView: document.getElementById('wishlistView'),
+    profileView: document.getElementById('profileView'),
+    heroContent: document.getElementById('heroContent'),
+    rankingCarousel: document.getElementById('rankingCarousel'),
+    favoritosCarousel: document.getElementById('favoritosCarousel'),
+    favoritosTitle: document.getElementById('favoritosTitle'),
+    searchInput: document.getElementById('searchInput'),
+    searchResults: document.getElementById('searchResults'),
+    rankingGrid: document.getElementById('rankingGrid'),
+    wishlistGrid: document.getElementById('wishlistGrid'),
+    movieDetailContent: document.getElementById('movieDetailContent')
+};
+
+// ===== Utility Functions =====
 
 function getCurrentWeek() {
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 1);
     const diff = now - start;
     const oneWeek = 1000 * 60 * 60 * 24 * 7;
-    const weekNum = Math.floor(diff / oneWeek);
-    return `${now.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`;
+    return `${now.getFullYear()}-W${Math.floor(diff / oneWeek).toString().padStart(2, '0')}`;
 }
 
+function getOtherUser() {
+    return currentUser === 'Ger' ? 'Magui' : 'Ger';
+}
+
+// ===== Authentication =====
+
 function login(username) {
+    currentUser = username;
     localStorage.setItem('bononaUser', username);
-    initializeUserData(username);
-    updateUI();
+    initializeUserVotes(username);
     elements.loginModal.classList.add('hidden');
-    elements.mainContent.classList.remove('hidden');
+    elements.mainApp.classList.remove('hidden');
+    setupFirebaseListeners();
+    showHomeView();
 }
 
 function logout() {
+    currentUser = null;
     localStorage.removeItem('bononaUser');
     elements.loginModal.classList.remove('hidden');
-    elements.mainContent.classList.add('hidden');
-    closeSidebar();
-}
-
-function getCurrentUser() {
-    return localStorage.getItem('bononaUser');
-}
-
-function initializeUserData(username) {
-    const favKey = `bononaFavorites_${username}`;
-    if (!localStorage.getItem(favKey)) {
-        localStorage.setItem(favKey, JSON.stringify([]));
-    }
-
-    // Initialize votes in Firebase
-    initializeVotesInFirebase(username);
-}
-
-async function initializeVotesInFirebase(username) {
-    if (!votesRef) return;
-
-    const currentWeek = getCurrentWeek();
-    const userVotesRef = votesRef.child(username);
-
-    const snapshot = await userVotesRef.once('value');
-    const data = snapshot.val();
-
-    if (!data || data.week !== currentWeek) {
-        await userVotesRef.set({
-            week: currentWeek,
-            remaining: 5
-        });
-    }
+    elements.mainApp.classList.add('hidden');
 }
 
 function checkAuth() {
-    const user = getCurrentUser();
+    const user = localStorage.getItem('bononaUser');
     if (user) {
-        initializeUserData(user);
+        currentUser = user;
         elements.loginModal.classList.add('hidden');
-        elements.mainContent.classList.remove('hidden');
-        updateUI();
+        elements.mainApp.classList.remove('hidden');
         setupFirebaseListeners();
-    } else {
-        elements.loginModal.classList.remove('hidden');
-        elements.mainContent.classList.add('hidden');
+        showHomeView();
+    }
+}
+
+async function initializeUserVotes(username) {
+    if (!votesRef) return;
+    const currentWeek = getCurrentWeek();
+    const snapshot = await votesRef.child(username).once('value');
+    const data = snapshot.val();
+
+    if (!data || data.week !== currentWeek) {
+        await votesRef.child(username).set({ week: currentWeek, remaining: 5 });
     }
 }
 
 // ===== Firebase Listeners =====
 
 function setupFirebaseListeners() {
-    if (!rankingRef) {
-        console.warn('Firebase not available, using localStorage');
-        return;
-    }
+    if (!rankingRef) return;
 
-    // Listen for ranking changes
     rankingRef.on('value', (snapshot) => {
         const data = snapshot.val();
         rankingData = data ? Object.values(data) : [];
         rankingData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
-        if (elements.rankingCount) {
-            elements.rankingCount.textContent = rankingData.length;
-        }
+        updateHomeView();
 
-        // If we're viewing ranking, refresh it
-        if (currentView === 'ranking') {
-            showRanking();
+        if (document.getElementById('rankingView').classList.contains('hidden') === false) {
+            renderRankingGrid();
         }
     });
-
-    // Listen for votes changes
-    const user = getCurrentUser();
-    if (user && votesRef) {
-        votesRef.child(user).on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                updateVotesDisplay(data.remaining || 0);
-            }
-        });
-    }
 }
 
-function updateVotesDisplay(remaining) {
-    if (elements.votesRemaining) elements.votesRemaining.textContent = remaining;
-    if (elements.sidebarVotes) elements.sidebarVotes.textContent = `${remaining} votos restantes`;
+// ===== Navigation =====
+
+function hideAllViews() {
+    elements.homeView.classList.add('hidden');
+    elements.searchView.classList.add('hidden');
+    elements.rankingView.classList.add('hidden');
+    elements.movieDetailView.classList.add('hidden');
+    elements.wishlistView.classList.add('hidden');
+    elements.profileView.classList.add('hidden');
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('text-accent-yellow');
+        item.classList.add('text-gray-500');
+    });
 }
 
-// ===== Favorites Management (Local) =====
-
-function getFavorites() {
-    const user = getCurrentUser();
-    if (!user) return [];
-    const favKey = `bononaFavorites_${user}`;
-    return JSON.parse(localStorage.getItem(favKey) || '[]');
+function showHomeView() {
+    hideAllViews();
+    elements.homeView.classList.remove('hidden');
+    document.getElementById('navHome').classList.remove('text-gray-500');
+    document.getElementById('navHome').classList.add('text-accent-yellow');
+    updateHomeView();
 }
 
-function isFavorite(movieId) {
-    return getFavorites().some(m => m.id === movieId);
+function showSearchView() {
+    hideAllViews();
+    elements.searchView.classList.remove('hidden');
+    document.getElementById('navSearch').classList.remove('text-gray-500');
+    document.getElementById('navSearch').classList.add('text-accent-yellow');
+    document.getElementById('searchInput').focus();
 }
 
-function toggleFavorite(movie, event) {
-    if (event) event.stopPropagation();
+function hideSearchView() {
+    showHomeView();
+}
 
-    const user = getCurrentUser();
-    if (!user) return;
+function showRankingView() {
+    hideAllViews();
+    elements.rankingView.classList.remove('hidden');
+    renderRankingGrid();
+}
 
-    const favKey = `bononaFavorites_${user}`;
-    let favorites = getFavorites();
+function hideRankingView() {
+    showHomeView();
+}
 
-    const index = favorites.findIndex(m => m.id === movie.id);
-    if (index > -1) {
-        favorites.splice(index, 1);
+function showWishlistView() {
+    hideAllViews();
+    elements.wishlistView.classList.remove('hidden');
+    document.getElementById('navWishlist').classList.remove('text-gray-500');
+    document.getElementById('navWishlist').classList.add('text-accent-yellow');
+    renderWishlistGrid();
+}
+
+function showProfileView() {
+    hideAllViews();
+    elements.profileView.classList.remove('hidden');
+    document.getElementById('navProfile').classList.remove('text-gray-500');
+    document.getElementById('navProfile').classList.add('text-accent-yellow');
+    updateProfileView();
+}
+
+function showMovieDetail(movieId) {
+    hideAllViews();
+    elements.movieDetailView.classList.remove('hidden');
+    loadMovieDetail(movieId);
+}
+
+function showOtherUserFavorites() {
+    hideAllViews();
+    elements.rankingView.classList.remove('hidden');
+
+    const otherUser = getOtherUser();
+    const otherUserMovies = rankingData.filter(m => m.addedBy === otherUser);
+
+    document.querySelector('#rankingView h1').textContent = `💜 Agregadas por ${otherUser}`;
+    elements.rankingGrid.innerHTML = otherUserMovies.length > 0
+        ? otherUserMovies.map((m, i) => createMovieCard(m, i + 1)).join('')
+        : '<p class="col-span-2 text-center text-gray-500 py-8">Todavía no agregó películas</p>';
+}
+
+// ===== Home View =====
+
+async function updateHomeView() {
+    renderHeroSection();
+    renderRankingCarousel();
+    renderFavoritosCarousel();
+}
+
+async function renderHeroSection() {
+    const topMovie = rankingData[0];
+
+    if (topMovie) {
+        const backdropUrl = topMovie.poster_path
+            ? `${API_CONFIG.imageBaseUrl}/w780${topMovie.poster_path}`
+            : null;
+
+        elements.heroContent.innerHTML = `
+            <div class="relative h-[50vh] min-h-[400px]">
+                ${backdropUrl ? `
+                    <img src="${backdropUrl}" alt="${topMovie.title}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/50 to-transparent"></div>
+                ` : `
+                    <div class="w-full h-full bg-gradient-to-br from-dark-700 to-dark-800 flex items-center justify-center">
+                        <span class="text-6xl">🎬</span>
+                    </div>
+                `}
+                <div class="absolute bottom-0 left-0 right-0 p-4">
+                    <p class="text-sm text-accent-yellow mb-2">🏆 #1 en el ranking • ${topMovie.votes || 0} votos</p>
+                    <h2 class="text-2xl font-bold mb-4">${topMovie.title}</h2>
+                    <div class="flex gap-3">
+                        <button onclick="showMovieDetail(${topMovie.id})" class="flex-1 flex items-center justify-center gap-2 py-3 bg-dark-700/80 backdrop-blur rounded-xl font-medium">
+                            <span>+</span> Información
+                        </button>
+                        <button onclick="showRankingView()" class="flex-1 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                            Ver ranking
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
     } else {
-        favorites.push({
-            id: movie.id,
-            title: movie.title,
-            poster_path: movie.poster_path,
-            release_date: movie.release_date,
-            vote_average: movie.vote_average,
-            genre_ids: movie.genre_ids || movie.genres?.map(g => g.id) || []
-        });
+        // Empty state - fetch a popular movie
+        try {
+            const data = await fetchFromTMDB('/movie/popular');
+            const randomMovie = data.results[Math.floor(Math.random() * 5)];
+            const backdropUrl = randomMovie.backdrop_path
+                ? `${API_CONFIG.imageBaseUrl}/w780${randomMovie.backdrop_path}`
+                : null;
+
+            elements.heroContent.innerHTML = `
+                <div class="relative h-[50vh] min-h-[400px]">
+                    ${backdropUrl ? `
+                        <img src="${backdropUrl}" alt="${randomMovie.title}" class="w-full h-full object-cover opacity-50">
+                        <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/70 to-transparent"></div>
+                    ` : ''}
+                    <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                        <div class="text-6xl mb-4">🎬</div>
+                        <h2 class="text-2xl font-bold mb-2">¡Empezá a agregar películas!</h2>
+                        <p class="text-gray-400 mb-6">Buscá películas y agregalas al ranking</p>
+                        <button onclick="showSearchView()" class="px-8 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                            🔍 Buscar películas
+                        </button>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            elements.heroContent.innerHTML = `
+                <div class="h-[50vh] min-h-[400px] flex flex-col items-center justify-center text-center p-4">
+                    <div class="text-6xl mb-4">🎬</div>
+                    <h2 class="text-2xl font-bold mb-2">¡Empezá a agregar películas!</h2>
+                    <p class="text-gray-400 mb-6">Buscá películas y agregalas al ranking</p>
+                    <button onclick="showSearchView()" class="px-8 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                        🔍 Buscar películas
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderRankingCarousel() {
+    if (rankingData.length === 0) {
+        elements.rankingCarousel.innerHTML = `
+            <div class="flex-shrink-0 w-32 h-48 bg-dark-700 rounded-xl flex items-center justify-center">
+                <span class="text-gray-500 text-sm text-center px-2">Sin películas</span>
+            </div>
+        `;
+        return;
     }
 
-    localStorage.setItem(favKey, JSON.stringify(favorites));
-    moviesCache[movie.id] = movie;
-    updateUI();
+    elements.rankingCarousel.innerHTML = rankingData.slice(0, 10).map((movie, index) => `
+        <div class="flex-shrink-0 w-32 cursor-pointer" onclick="showMovieDetail(${movie.id})">
+            <div class="relative">
+                ${movie.poster_path
+            ? `<img src="${API_CONFIG.imageBaseUrl}/w200${movie.poster_path}" alt="${movie.title}" class="w-full h-48 object-cover rounded-xl">`
+            : `<div class="w-full h-48 bg-dark-700 rounded-xl flex items-center justify-center text-3xl">🎬</div>`
+        }
+                <div class="absolute top-2 left-2 w-6 h-6 bg-accent-yellow text-dark-900 rounded-full flex items-center justify-center text-xs font-bold">
+                    ${index + 1}
+                </div>
+            </div>
+            <p class="mt-2 text-sm font-medium truncate">${movie.title}</p>
+        </div>
+    `).join('');
+}
 
-    if (currentView === 'favorites') {
-        showFavorites();
+function renderFavoritosCarousel() {
+    const otherUser = getOtherUser();
+    elements.favoritosTitle.textContent = `Favoritos de ${otherUser}`;
+    document.getElementById('verFavoritosBtn').textContent = `Ver listado ${otherUser}`;
+
+    const otherUserMovies = rankingData.filter(m => m.addedBy === otherUser);
+
+    if (otherUserMovies.length === 0) {
+        elements.favoritosCarousel.innerHTML = `
+            <div class="flex-shrink-0 w-32 h-48 bg-dark-700 rounded-xl flex items-center justify-center">
+                <span class="text-gray-500 text-sm text-center px-2">${otherUser} no agregó películas</span>
+            </div>
+        `;
+        return;
+    }
+
+    elements.favoritosCarousel.innerHTML = otherUserMovies.slice(0, 10).map(movie => `
+        <div class="flex-shrink-0 w-32 cursor-pointer" onclick="showMovieDetail(${movie.id})">
+            <div class="relative">
+                ${movie.poster_path
+            ? `<img src="${API_CONFIG.imageBaseUrl}/w200${movie.poster_path}" alt="${movie.title}" class="w-full h-48 object-cover rounded-xl">`
+            : `<div class="w-full h-48 bg-dark-700 rounded-xl flex items-center justify-center text-3xl">🎬</div>`
+        }
+                ${movie.vote_average ? `
+                    <div class="absolute bottom-2 left-2 px-2 py-0.5 bg-dark-900/80 rounded text-xs flex items-center gap-1">
+                        <span class="text-yellow-400">★</span> ${movie.vote_average.toFixed(1)}
+                    </div>
+                ` : ''}
+            </div>
+            <p class="mt-2 text-sm font-medium truncate">${movie.title}</p>
+        </div>
+    `).join('');
+}
+
+// ===== Ranking =====
+
+function renderRankingGrid() {
+    const totalVotes = rankingData.reduce((sum, m) => sum + (m.votes || 0), 0);
+    document.getElementById('rankingTotalVotes').textContent = `${totalVotes} votos totales`;
+
+    if (rankingData.length === 0) {
+        elements.rankingGrid.innerHTML = `
+            <div class="col-span-2 text-center py-16">
+                <div class="text-6xl mb-4">🎬</div>
+                <p class="text-gray-400">No hay películas en el ranking</p>
+                <button onclick="showSearchView()" class="mt-4 px-6 py-2 bg-accent-yellow text-dark-900 rounded-xl font-medium">
+                    Agregar películas
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    elements.rankingGrid.innerHTML = rankingData.map((movie, index) => createMovieCard(movie, index + 1)).join('');
+}
+
+function createMovieCard(movie, rank) {
+    const userVotes = movie.votedBy?.[currentUser] || 0;
+
+    return `
+        <div class="bg-dark-700 rounded-xl overflow-hidden" onclick="showMovieDetail(${movie.id})">
+            <div class="relative">
+                ${movie.poster_path
+            ? `<img src="${API_CONFIG.imageBaseUrl}/w300${movie.poster_path}" alt="${movie.title}" class="w-full h-56 object-cover">`
+            : `<div class="w-full h-56 bg-dark-600 flex items-center justify-center text-4xl">🎬</div>`
+        }
+                <div class="absolute top-2 left-2 w-8 h-8 bg-accent-yellow text-dark-900 rounded-full flex items-center justify-center text-sm font-bold">
+                    #${rank}
+                </div>
+                <div class="absolute top-2 right-2 px-2 py-1 bg-dark-900/80 rounded-lg text-xs flex items-center gap-1">
+                    <span class="text-yellow-400">★</span> ${movie.votes || 0}
+                </div>
+            </div>
+            <div class="p-3">
+                <h3 class="font-medium truncate mb-2">${movie.title}</h3>
+                <button onclick="event.stopPropagation(); voteForMovie(${movie.id})" 
+                    class="w-full py-2 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400' : 'bg-accent-purple/20 text-accent-purple'} rounded-lg text-sm font-medium">
+                    ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// ===== Wishlist (My Added Movies) =====
+
+function renderWishlistGrid() {
+    const myMovies = rankingData.filter(m => m.addedBy === currentUser);
+
+    if (myMovies.length === 0) {
+        elements.wishlistGrid.innerHTML = `
+            <div class="col-span-2 text-center py-16">
+                <div class="text-6xl mb-4">📝</div>
+                <p class="text-gray-400">No agregaste películas todavía</p>
+                <button onclick="showSearchView()" class="mt-4 px-6 py-2 bg-accent-yellow text-dark-900 rounded-xl font-medium">
+                    Buscar películas
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    elements.wishlistGrid.innerHTML = myMovies.map((movie, index) => createMovieCard(movie, index + 1)).join('');
+}
+
+// ===== Movie Detail =====
+
+async function loadMovieDetail(movieId) {
+    elements.movieDetailContent.innerHTML = `
+        <div class="h-screen flex items-center justify-center">
+            <div class="w-10 h-10 border-3 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div>
+        </div>
+    `;
+
+    try {
+        const movie = await fetchFromTMDB(`/movie/${movieId}`, { append_to_response: 'credits' });
+        moviesCache[movieId] = movie;
+        renderMovieDetail(movie);
+    } catch (error) {
+        console.error(error);
+        elements.movieDetailContent.innerHTML = `
+            <div class="h-screen flex flex-col items-center justify-center p-4">
+                <p class="text-red-400 mb-4">Error al cargar la película</p>
+                <button onclick="showHomeView()" class="px-6 py-2 bg-dark-700 rounded-xl">Volver</button>
+            </div>
+        `;
     }
 }
 
-// ===== Ranking Management (Firebase) =====
+function renderMovieDetail(movie) {
+    const backdropUrl = movie.backdrop_path
+        ? `${API_CONFIG.imageBaseUrl}/w780${movie.backdrop_path}`
+        : movie.poster_path
+            ? `${API_CONFIG.imageBaseUrl}/w500${movie.poster_path}`
+            : null;
 
-function getRanking() {
-    return rankingData;
+    const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+    const runtime = movie.runtime ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m` : '';
+    const genres = movie.genres?.map(g => g.name).join(', ') || '';
+    const cast = movie.credits?.cast?.slice(0, 6) || [];
+    const isInRanking = rankingData.some(m => m.id === movie.id);
+    const rankingMovie = rankingData.find(m => m.id === movie.id);
+    const userVotes = rankingMovie?.votedBy?.[currentUser] || 0;
+
+    elements.movieDetailContent.innerHTML = `
+        <!-- Back Button -->
+        <button onclick="showHomeView()" class="fixed top-4 left-4 z-50 w-10 h-10 bg-dark-900/80 backdrop-blur rounded-full flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+        </button>
+        
+        <!-- Backdrop -->
+        <div class="relative h-[40vh]">
+            ${backdropUrl
+            ? `<img src="${backdropUrl}" alt="${movie.title}" class="w-full h-full object-cover">`
+            : `<div class="w-full h-full bg-gradient-to-br from-dark-700 to-dark-800"></div>`
+        }
+            <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/50 to-transparent"></div>
+        </div>
+        
+        <!-- Content -->
+        <div class="relative -mt-20 px-4 pb-24">
+            <h1 class="text-3xl font-bold mb-3">${movie.title}</h1>
+            
+            <!-- Meta Info -->
+            <div class="flex flex-wrap gap-2 mb-4">
+                ${year ? `<span class="px-3 py-1 bg-dark-700 rounded-lg text-sm">${year}</span>` : ''}
+                ${runtime ? `<span class="px-3 py-1 bg-dark-700 rounded-lg text-sm">${runtime}</span>` : ''}
+                <span class="px-3 py-1 bg-yellow-400/20 text-yellow-400 rounded-lg text-sm">⭐ ${movie.vote_average?.toFixed(1) || 'N/A'}</span>
+            </div>
+            
+            <!-- Genres -->
+            ${genres ? `<p class="text-gray-400 text-sm mb-4">${genres}</p>` : ''}
+            
+            <!-- Action Buttons -->
+            <div class="flex gap-3 mb-6">
+                ${isInRanking ? `
+                    <button onclick="voteForMovie(${movie.id})" class="flex-1 py-3 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400' : 'bg-accent-purple'} rounded-xl font-semibold">
+                        ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
+                    </button>
+                    <button onclick="removeFromRanking(${movie.id})" class="px-4 py-3 bg-red-500/20 text-red-400 rounded-xl">
+                        🗑️
+                    </button>
+                ` : `
+                    <button onclick="addToRanking(${movie.id})" class="flex-1 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                        ➕ Agregar al Ranking
+                    </button>
+                `}
+            </div>
+            
+            <!-- Overview -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-2">Sinopsis</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">${movie.overview || 'Sin descripción disponible.'}</p>
+            </div>
+            
+            <!-- Cast -->
+            ${cast.length > 0 ? `
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">Reparto</h3>
+                    <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                        ${cast.map(actor => `
+                            <div class="flex-shrink-0 w-20 text-center">
+                                ${actor.profile_path
+                ? `<img src="${API_CONFIG.imageBaseUrl}/w185${actor.profile_path}" alt="${actor.name}" class="w-16 h-16 rounded-full object-cover mx-auto mb-2">`
+                : `<div class="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mx-auto mb-2 text-xl">👤</div>`
+            }
+                                <p class="text-xs font-medium truncate">${actor.name}</p>
+                                <p class="text-xs text-gray-500 truncate">${actor.character}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
 }
 
-function isInRanking(movieId) {
-    return rankingData.some(m => m.id === movieId);
+// ===== Search =====
+
+async function searchMovies(query) {
+    if (!query.trim()) {
+        elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">Escribí el nombre de una película</p>';
+        return;
+    }
+
+    elements.searchResults.innerHTML = `
+        <div class="flex justify-center py-8">
+            <div class="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div>
+        </div>
+    `;
+
+    try {
+        const data = await fetchFromTMDB('/search/movie', { query });
+        renderSearchResults(data.results);
+    } catch (error) {
+        elements.searchResults.innerHTML = '<p class="text-center text-red-400 py-8">Error al buscar</p>';
+    }
 }
 
-async function addToRanking(movie, event) {
-    if (event) event.stopPropagation();
+function renderSearchResults(movies) {
+    if (!movies || movies.length === 0) {
+        elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">No se encontraron películas</p>';
+        return;
+    }
 
-    if (isInRanking(movie.id)) {
+    elements.searchResults.innerHTML = movies.slice(0, 15).map(movie => {
+        const posterUrl = movie.poster_path ? `${API_CONFIG.imageBaseUrl}/w92${movie.poster_path}` : null;
+        const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+        const inRanking = rankingData.some(m => m.id === movie.id);
+
+        moviesCache[movie.id] = movie;
+
+        return `
+            <div class="flex items-center gap-3 p-3 bg-dark-700 rounded-xl mb-2">
+                ${posterUrl
+                ? `<img src="${posterUrl}" alt="" class="w-12 h-16 rounded-lg object-cover">`
+                : `<div class="w-12 h-16 rounded-lg bg-dark-600 flex items-center justify-center text-xl">🎬</div>`
+            }
+                <div class="flex-1 min-w-0" onclick="showMovieDetail(${movie.id})">
+                    <p class="font-medium truncate">${movie.title}</p>
+                    <p class="text-sm text-gray-400">${year}</p>
+                </div>
+                <button onclick="addToRanking(${movie.id})" 
+                    class="px-4 py-2 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-accent-yellow text-dark-900'} rounded-xl text-sm font-medium"
+                    ${inRanking ? 'disabled' : ''}
+                >
+                    ${inRanking ? '✓' : '+'}
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+// ===== Ranking Actions =====
+
+async function addToRanking(movieId) {
+    if (rankingData.some(m => m.id === movieId)) {
         alert('Esta película ya está en el ranking');
         return;
+    }
+
+    let movie = moviesCache[movieId];
+    if (!movie) {
+        movie = await fetchFromTMDB(`/movie/${movieId}`);
+        moviesCache[movieId] = movie;
     }
 
     const movieData = {
         id: movie.id,
         title: movie.title,
         poster_path: movie.poster_path || null,
+        backdrop_path: movie.backdrop_path || null,
         release_date: movie.release_date || null,
         vote_average: movie.vote_average || 0,
-        genre_ids: movie.genre_ids || movie.genres?.map(g => g.id) || [],
         votes: 0,
-        addedBy: getCurrentUser(),
+        addedBy: currentUser,
         addedAt: Date.now()
     };
 
@@ -260,25 +607,20 @@ async function addToRanking(movie, event) {
         await rankingRef.child(movie.id.toString()).set(movieData);
     }
 
-    moviesCache[movie.id] = movie;
-    closeSearchModal();
-    alert(`"${movie.title}" agregada al ranking 🎬`);
+    showHomeView();
 }
 
-async function removeFromRanking(movieId, event) {
-    if (event) event.stopPropagation();
-
-    if (rankingRef) {
-        await rankingRef.child(movieId.toString()).remove();
-    }
-
-    if (currentView === 'ranking') {
-        showRanking();
+async function removeFromRanking(movieId) {
+    if (confirm('¿Eliminar esta película del ranking?')) {
+        if (rankingRef) {
+            await rankingRef.child(movieId.toString()).remove();
+        }
+        showHomeView();
     }
 }
 
 async function resetRanking() {
-    if (confirm('¿Seguro que querés borrar todo el ranking?')) {
+    if (confirm('¿Seguro que querés borrar TODO el ranking?')) {
         if (rankingRef) {
             await rankingRef.remove();
         }
@@ -286,68 +628,43 @@ async function resetRanking() {
     }
 }
 
-// ===== Votes Management (Firebase) =====
+// ===== Voting =====
 
-async function getRemainingVotes(username = null) {
-    const user = username || getCurrentUser();
-    if (!user || !votesRef) return 0;
+async function voteForMovie(movieId) {
+    if (!currentUser || !votesRef || !rankingRef) return;
 
     const currentWeek = getCurrentWeek();
-    const snapshot = await votesRef.child(user).once('value');
-    const data = snapshot.val();
+    const userVotesSnapshot = await votesRef.child(currentUser).once('value');
+    let userData = userVotesSnapshot.val() || { week: currentWeek, remaining: 5 };
 
-    if (!data || data.week !== currentWeek) {
-        await votesRef.child(user).set({ week: currentWeek, remaining: 5 });
-        return 5;
+    if (userData.week !== currentWeek) {
+        userData = { week: currentWeek, remaining: 5 };
     }
 
-    return data.remaining || 0;
-}
-
-function getUserVotesForMovie(movieId) {
-    const user = getCurrentUser();
-    if (!user) return 0;
-
-    const movie = rankingData.find(m => m.id === movieId);
-    return movie?.votedBy?.[user] || 0;
-}
-
-async function voteForMovie(movieId, event) {
-    if (event) event.stopPropagation();
-
-    const user = getCurrentUser();
-    if (!user) return;
-
-    const remaining = await getRemainingVotes();
-    if (remaining <= 0) {
+    if (userData.remaining <= 0) {
         alert('¡Ya usaste todos tus votos de esta semana! 🗳️');
         return;
     }
 
-    // Update user votes
-    const currentWeek = getCurrentWeek();
-    await votesRef.child(user).set({
+    // Decrease user votes
+    await votesRef.child(currentUser).set({
         week: currentWeek,
-        remaining: remaining - 1
+        remaining: userData.remaining - 1
     });
 
-    // Update movie votes
-    const movieRef = rankingRef.child(movieId.toString());
-    const snapshot = await movieRef.once('value');
-    const movie = snapshot.val();
+    // Increase movie votes
+    const movieSnapshot = await rankingRef.child(movieId.toString()).once('value');
+    const movie = movieSnapshot.val();
 
     if (movie) {
-        const newVotes = (movie.votes || 0) + 1;
         const votedBy = movie.votedBy || {};
-        votedBy[user] = (votedBy[user] || 0) + 1;
+        votedBy[currentUser] = (votedBy[currentUser] || 0) + 1;
 
-        await movieRef.update({
-            votes: newVotes,
+        await rankingRef.child(movieId.toString()).update({
+            votes: (movie.votes || 0) + 1,
             votedBy: votedBy
         });
     }
-
-    updateUI();
 }
 
 async function adjustVotes(username, amount) {
@@ -355,187 +672,49 @@ async function adjustVotes(username, amount) {
 
     const currentWeek = getCurrentWeek();
     const snapshot = await votesRef.child(username).once('value');
-    let data = snapshot.val();
+    let data = snapshot.val() || { week: currentWeek, remaining: 5 };
 
-    if (!data || data.week !== currentWeek) {
+    if (data.week !== currentWeek) {
         data = { week: currentWeek, remaining: 5 };
     }
 
-    data.remaining = Math.max(0, (data.remaining || 0) + amount);
+    data.remaining = Math.max(0, data.remaining + amount);
     await votesRef.child(username).set(data);
 
-    updateSettingsDisplay();
+    updateProfileView();
 }
 
-async function updateSettingsDisplay() {
+// ===== Profile =====
+
+async function updateProfileView() {
+    document.getElementById('profileAvatar').textContent = currentUser[0];
+    document.getElementById('profileName').textContent = currentUser;
+
+    const userVotes = await getRemainingVotes(currentUser);
+    document.getElementById('profileVotes').textContent = `${userVotes} votos restantes`;
+
     const gerVotes = await getRemainingVotes('Ger');
     const maguiVotes = await getRemainingVotes('Magui');
 
-    if (elements.gerVotesDisplay) {
-        elements.gerVotesDisplay.textContent = `${gerVotes} votos restantes`;
-    }
-    if (elements.maguiVotesDisplay) {
-        elements.maguiVotesDisplay.textContent = `${maguiVotes} votos restantes`;
-    }
+    document.getElementById('gerVotesDisplay').textContent = `${gerVotes} votos`;
+    document.getElementById('maguiVotesDisplay').textContent = `${maguiVotes} votos`;
 }
 
-// ===== UI Updates =====
+async function getRemainingVotes(username) {
+    if (!votesRef) return 5;
 
-async function updateUI() {
-    const user = getCurrentUser();
-    if (!user) return;
+    const currentWeek = getCurrentWeek();
+    const snapshot = await votesRef.child(username).once('value');
+    const data = snapshot.val();
 
-    const remaining = await getRemainingVotes();
-    const favorites = getFavorites();
-
-    if (elements.sidebarUsername) elements.sidebarUsername.textContent = user;
-    if (elements.welcomeUser) elements.welcomeUser.textContent = `¡Hola, ${user}! 👋`;
-
-    updateVotesDisplay(remaining);
-
-    if (elements.favoritesCount) elements.favoritesCount.textContent = favorites.length;
-    if (elements.rankingCount) elements.rankingCount.textContent = rankingData.length;
-}
-
-// ===== Sidebar =====
-
-function openSidebar() {
-    elements.sidebar.classList.remove('hidden');
-    setTimeout(() => {
-        const content = elements.sidebar.querySelector('.sidebar-content');
-        content.classList.remove('-translate-x-full');
-    }, 10);
-}
-
-function closeSidebar() {
-    const content = elements.sidebar.querySelector('.sidebar-content');
-    content.classList.add('-translate-x-full');
-    setTimeout(() => {
-        elements.sidebar.classList.add('hidden');
-    }, 300);
-}
-
-// ===== Navigation =====
-
-function hideAllSections() {
-    elements.heroSection.classList.add('hidden');
-    elements.moviesSection.classList.add('hidden');
-    elements.settingsSection.classList.add('hidden');
-    hideEmptyState();
-    hideError();
-}
-
-function goHome() {
-    currentView = 'home';
-    hideAllSections();
-    elements.heroSection.classList.remove('hidden');
-    hideSectionHeader();
-    elements.moviesGrid.innerHTML = '';
-}
-
-function showFavorites() {
-    currentView = 'favorites';
-    hideAllSections();
-    elements.moviesSection.classList.remove('hidden');
-
-    const favorites = getFavorites();
-
-    if (favorites.length === 0) {
-        showSectionHeader('💜 Tus Favoritas', 'Agregá películas a favoritos', 0);
-        showEmptyState();
-        elements.moviesGrid.innerHTML = '';
-    } else {
-        displayMovies(favorites, '💜 Tus Favoritas', 'Las películas que guardaste');
-    }
-}
-
-function showRanking() {
-    currentView = 'ranking';
-    hideAllSections();
-    elements.moviesSection.classList.remove('hidden');
-
-    const ranking = getRanking();
-
-    if (ranking.length === 0) {
-        showSectionHeader('🏆 Ranking', 'Agregá películas para votar', 0);
-        showEmptyState();
-        elements.moviesGrid.innerHTML = '';
-    } else {
-        displayMovies(ranking, '🏆 Ranking', 'Votá las que quieras ver primero', true);
-    }
-}
-
-function showSettings() {
-    currentView = 'settings';
-    hideAllSections();
-    elements.settingsSection.classList.remove('hidden');
-    updateSettingsDisplay();
-}
-
-// ===== Search Modal =====
-
-function openSearchModal() {
-    elements.searchModal.classList.remove('hidden');
-    elements.searchInput.value = '';
-    elements.searchInput.focus();
-    elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">Escribí el nombre de una película</p>';
-}
-
-function closeSearchModal() {
-    elements.searchModal.classList.add('hidden');
-}
-
-async function searchMovies(query) {
-    if (!query.trim()) return;
-
-    elements.searchResults.innerHTML = '<div class="flex justify-center py-8"><div class="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div></div>';
-
-    try {
-        const data = await fetchFromTMDB('/search/movie', { query });
-        displaySearchResults(data.results);
-    } catch (error) {
-        elements.searchResults.innerHTML = '<p class="text-center text-red-400 py-8">Error al buscar</p>';
-    }
-}
-
-function displaySearchResults(movies) {
-    if (!movies || movies.length === 0) {
-        elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">No se encontraron películas</p>';
-        return;
+    if (!data || data.week !== currentWeek) {
+        return 5;
     }
 
-    elements.searchResults.innerHTML = movies.slice(0, 10).map(movie => {
-        const posterUrl = movie.poster_path
-            ? `${API_CONFIG.imageBaseUrl}/w92${movie.poster_path}`
-            : null;
-        const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
-        const inRanking = isInRanking(movie.id);
-
-        moviesCache[movie.id] = movie;
-
-        return `
-            <div class="flex items-center gap-3 p-3 bg-dark-700/50 rounded-xl mb-2 ${inRanking ? 'opacity-50' : ''}">
-                ${posterUrl
-                ? `<img src="${posterUrl}" class="w-12 h-16 rounded-lg object-cover" alt="">`
-                : `<div class="w-12 h-16 rounded-lg bg-dark-600 flex items-center justify-center text-gray-500 text-xs">?</div>`
-            }
-                <div class="flex-1 min-w-0">
-                    <p class="font-medium truncate">${movie.title}</p>
-                    <p class="text-sm text-gray-400">${year}</p>
-                </div>
-                <button 
-                    onclick="addToRanking(moviesCache[${movie.id}], event)"
-                    class="px-4 py-2 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-gradient-to-r from-accent-purple to-accent-pink'} rounded-xl text-sm font-medium"
-                    ${inRanking ? 'disabled' : ''}
-                >
-                    ${inRanking ? 'Ya está' : '+ Agregar'}
-                </button>
-            </div>
-        `;
-    }).join('');
+    return data.remaining || 0;
 }
 
-// ===== API Functions =====
+// ===== API =====
 
 async function fetchFromTMDB(endpoint, params = {}) {
     const url = new URL(`${API_CONFIG.baseUrl}${endpoint}`);
@@ -548,224 +727,24 @@ async function fetchFromTMDB(endpoint, params = {}) {
 
     const response = await fetch(url.toString());
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.results) {
-        data.results.forEach(m => moviesCache[m.id] = m);
-    }
-    return data;
-}
-
-async function getMovieDetails(movieId) {
-    try {
-        const data = await fetchFromTMDB(`/movie/${movieId}`);
-        moviesCache[movieId] = data;
-        showMovieModal(data);
-    } catch (error) {
-        console.error('Error:', error);
-    }
-}
-
-// ===== Display Functions =====
-
-function displayMovies(movies, title, subtitle, isRanking = false) {
-    hideLoading();
-    hideError();
-
-    if (!movies || movies.length === 0) {
-        showEmptyState();
-        return;
-    }
-
-    hideEmptyState();
-    showSectionHeader(title, subtitle, movies.length);
-
-    elements.moviesGrid.innerHTML = movies.map((movie, index) =>
-        createMovieCard(movie, isRanking ? index + 1 : null, isRanking)
-    ).join('');
-
-    document.querySelectorAll('.movie-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const movieId = parseInt(card.dataset.movieId);
-            getMovieDetails(movieId);
-        });
-    });
-}
-
-function createMovieCard(movie, rankPosition = null, isRanking = false) {
-    const posterUrl = movie.poster_path
-        ? `${API_CONFIG.imageBaseUrl}/w500${movie.poster_path}`
-        : null;
-
-    const year = movie.release_date
-        ? new Date(movie.release_date).getFullYear()
-        : '';
-
-    const votes = movie.votes || 0;
-    const userVotes = getUserVotesForMovie(movie.id);
-
-    const posterHTML = posterUrl
-        ? `<img src="${posterUrl}" alt="${movie.title}" loading="lazy">`
-        : `<div class="no-poster"><span>?</span></div>`;
-
-    return `
-        <article class="movie-card glass-card" data-movie-id="${movie.id}">
-            <div class="movie-poster">
-                ${posterHTML}
-                ${rankPosition ? `<div class="rank-badge">#${rankPosition}</div>` : ''}
-                ${isRanking ? `
-                    <div class="votes-badge">
-                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                        </svg>
-                        ${votes}
-                    </div>
-                ` : ''}
-            </div>
-            <div class="movie-info">
-                <h3 class="movie-title">${movie.title}</h3>
-                <p class="movie-year">${year}</p>
-                ${isRanking ? `
-                    <button 
-                        onclick="voteForMovie(${movie.id}, event)"
-                        class="vote-btn mt-2 w-full py-2 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-accent-purple/20 text-accent-purple border-accent-purple/30'} border rounded-lg text-sm font-medium"
-                    >
-                        ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
-                    </button>
-                ` : ''}
-            </div>
-        </article>
-    `;
-}
-
-function showMovieModal(movie) {
-    const backdropUrl = movie.backdrop_path
-        ? `${API_CONFIG.imageBaseUrl}/w780${movie.backdrop_path}`
-        : movie.poster_path
-            ? `${API_CONFIG.imageBaseUrl}/w500${movie.poster_path}`
-            : null;
-
-    const year = movie.release_date
-        ? new Date(movie.release_date).getFullYear()
-        : '';
-
-    const rating = movie.vote_average || 0;
-    const inRanking = isInRanking(movie.id);
-    const isFav = isFavorite(movie.id);
-
-    elements.modalContent.innerHTML = `
-        ${backdropUrl ? `
-            <div class="modal-backdrop">
-                <img src="${backdropUrl}" alt="${movie.title}">
-            </div>
-        ` : ''}
-        <div class="modal-content">
-            <h2 class="modal-title">${movie.title}</h2>
-            
-            <div class="flex flex-wrap gap-2 mb-4">
-                <span class="px-3 py-1 bg-dark-700 rounded-lg text-sm">${year}</span>
-                <span class="px-3 py-1 bg-yellow-400/20 text-yellow-400 rounded-lg text-sm">⭐ ${rating.toFixed(1)}</span>
-            </div>
-
-            <p class="text-gray-400 text-sm mb-6 leading-relaxed">${movie.overview || 'Sin descripción.'}</p>
-
-            <div class="flex flex-col gap-2">
-                <button 
-                    onclick="addToRanking(moviesCache[${movie.id}], event); closeMovieModal();"
-                    class="w-full py-3 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-gradient-to-r from-accent-purple to-accent-pink'} rounded-xl font-medium"
-                    ${inRanking ? 'disabled' : ''}
-                >
-                    ${inRanking ? '✓ Ya está en el ranking' : '➕ Agregar al Ranking'}
-                </button>
-                <button 
-                    onclick="toggleFavorite(moviesCache[${movie.id}], event); closeMovieModal();"
-                    class="w-full py-3 ${isFav ? 'bg-accent-pink/20 text-accent-pink border-accent-pink/30' : 'bg-dark-700 border-white/10'} border rounded-xl font-medium"
-                >
-                    ${isFav ? '💜 En Favoritas' : '🤍 Agregar a Favoritas'}
-                </button>
-            </div>
-        </div>
-    `;
-
-    elements.movieModal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-}
-
-function closeMovieModal() {
-    elements.movieModal.classList.add('hidden');
-    document.body.style.overflow = '';
-}
-
-// ===== Helper Functions =====
-
-function showLoading() {
-    elements.loadingIndicator.classList.remove('hidden');
-}
-
-function hideLoading() {
-    elements.loadingIndicator.classList.add('hidden');
-}
-
-function showSectionHeader(title, subtitle, count) {
-    elements.sectionHeader.classList.remove('hidden');
-    elements.sectionTitle.textContent = title;
-    elements.sectionSubtitle.textContent = subtitle;
-    elements.resultsCount.textContent = `${count} película${count !== 1 ? 's' : ''}`;
-}
-
-function hideSectionHeader() {
-    elements.sectionHeader.classList.add('hidden');
-}
-
-function showEmptyState() {
-    elements.emptyState.classList.remove('hidden');
-}
-
-function hideEmptyState() {
-    elements.emptyState.classList.add('hidden');
-}
-
-function showError(message) {
-    hideLoading();
-    hideEmptyState();
-    elements.errorState.classList.remove('hidden');
-    elements.errorMessage.textContent = message;
-}
-
-function hideError() {
-    elements.errorState.classList.add('hidden');
+    return response.json();
 }
 
 // ===== Event Listeners =====
 
-elements.addToRankingBtn?.addEventListener('click', openSearchModal);
-elements.rankingBtn?.addEventListener('click', showRanking);
-
-elements.searchBtn?.addEventListener('click', () => {
-    searchMovies(elements.searchInput.value);
+document.getElementById('searchInput')?.addEventListener('input', (e) => {
+    clearTimeout(window.searchTimeout);
+    window.searchTimeout = setTimeout(() => {
+        searchMovies(e.target.value);
+    }, 500);
 });
 
-elements.searchInput?.addEventListener('keypress', (e) => {
+document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-        searchMovies(elements.searchInput.value);
+        searchMovies(e.target.value);
     }
 });
 
-elements.closeModal?.addEventListener('click', closeMovieModal);
-elements.movieModal?.addEventListener('click', (e) => {
-    if (e.target === elements.movieModal) {
-        closeMovieModal();
-    }
-});
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        if (!elements.movieModal.classList.contains('hidden')) closeMovieModal();
-        if (!elements.sidebar.classList.contains('hidden')) closeSidebar();
-        if (!elements.searchModal.classList.contains('hidden')) closeSearchModal();
-    }
-});
-
-// ===== Initialization =====
-console.log('🎬 BononaMovie initialized with Firebase');
+// ===== Initialize =====
+console.log('🎬 BononaMovie v2.0');
 checkAuth();
