@@ -270,25 +270,29 @@ async function renderHeroSection() {
             : null;
 
         elements.heroContent.innerHTML = `
-            <div class="relative h-[50vh] min-h-[400px]">
+            <div class="relative h-[65vh] min-h-[500px]">
                 ${backdropUrl ? `
                     <img src="${backdropUrl}" alt="${topMovie.title}" class="w-full h-full object-cover">
-                    <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/50 to-transparent"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/80 to-transparent"></div>
                 ` : `
                     <div class="w-full h-full bg-gradient-to-br from-dark-700 to-dark-800 flex items-center justify-center">
                         <span class="text-6xl">🎬</span>
                     </div>
                 `}
-                <div class="absolute bottom-0 left-0 right-0 p-4">
-                    <p class="text-sm text-accent-yellow mb-2">🏆 #1 en el ranking • ${topMovie.votes || 0} votos</p>
-                    <h2 class="text-2xl font-bold mb-4">${topMovie.title}</h2>
-                    <div class="flex gap-3">
-                        <button onclick="showMovieDetail(${topMovie.id})" class="flex-1 flex items-center justify-center gap-2 py-3 bg-dark-700/80 backdrop-blur rounded-xl font-medium">
-                            <span>+</span> Información
-                        </button>
-                        <button onclick="showRankingView()" class="flex-1 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
-                            Ver ranking
-                        </button>
+        <div class="absolute bottom-0 left-0 right-0 p-6 pb-8 bg-gradient-to-t from-dark-900 to-transparent pt-32">
+            <div class="flex flex-col items-center text-center">
+                <p class="text-sm text-accent-yellow mb-2 font-medium tracking-wide">🏆 #1 EN EL RANKING</p>
+                <h2 class="text-4xl font-bold mb-2 text-white leading-tight">${topMovie.title}</h2>
+                <p class="text-gray-300 text-sm mb-6">${topMovie.votes || 0} votos</p>
+
+                <div class="flex gap-3 w-full max-w-md">
+                    <button onclick="showMovieDetail(${topMovie.id})" class="flex-1 flex items-center justify-center gap-2 py-3.5 bg-white/10 backdrop-blur-md border border-white/10 rounded-xl font-medium text-white hover:bg-white/20 transition-colors">
+                        <span class="text-lg">ℹ️</span> Información
+                            </button>
+                            <button onclick="showRankingView()" class="flex-1 py-3.5 bg-accent-yellow text-dark-900 rounded-xl font-bold hover:bg-accent-yellow/90 transition-colors">
+                                Ver ranking
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -303,16 +307,16 @@ async function renderHeroSection() {
                 : null;
 
             elements.heroContent.innerHTML = `
-                <div class="relative h-[50vh] min-h-[400px]">
+                <div class="relative h-[65vh] min-h-[500px]">
                     ${backdropUrl ? `
-                        <img src="${backdropUrl}" alt="${randomMovie.title}" class="w-full h-full object-cover opacity-50">
-                        <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/70 to-transparent"></div>
+                        <img src="${backdropUrl}" alt="${randomMovie.title}" class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/80 to-transparent"></div>
                     ` : ''}
-                    <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                    <div class="absolute bottom-0 left-0 right-0 p-6 pb-8 bg-gradient-to-t from-dark-900 to-transparent pt-32 flex flex-col items-center justify-center text-center">
                         <div class="text-6xl mb-4">🎬</div>
-                        <h2 class="text-2xl font-bold mb-2">¡Empezá a agregar películas!</h2>
-                        <p class="text-gray-400 mb-6">Buscá películas y agregalas al ranking</p>
-                        <button onclick="showSearchView()" class="px-8 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                        <h2 class="text-3xl font-bold mb-3 text-white">¡Empezá a agregar películas!</h2>
+                        <p class="text-gray-300 text-lg mb-8 max-w-xs mx-auto">Buscá tus favoritas y sumalas al ranking compartido</p>
+                        <button onclick="showSearchView()" class="px-8 py-4 bg-accent-yellow text-dark-900 rounded-xl font-bold text-lg hover:bg-accent-yellow/90 transition-colors shadow-lg shadow-accent-yellow/20">
                             🔍 Buscar películas
                         </button>
                     </div>
@@ -320,11 +324,11 @@ async function renderHeroSection() {
             `;
         } catch (e) {
             elements.heroContent.innerHTML = `
-                <div class="h-[50vh] min-h-[400px] flex flex-col items-center justify-center text-center p-4">
+                <div class="h-[65vh] min-h-[500px] flex flex-col items-center justify-center text-center p-6 bg-gradient-to-br from-dark-800 to-dark-900 border-b border-white/5">
                     <div class="text-6xl mb-4">🎬</div>
-                    <h2 class="text-2xl font-bold mb-2">¡Empezá a agregar películas!</h2>
-                    <p class="text-gray-400 mb-6">Buscá películas y agregalas al ranking</p>
-                    <button onclick="showSearchView()" class="px-8 py-3 bg-accent-yellow text-dark-900 rounded-xl font-semibold">
+                    <h2 class="text-3xl font-bold mb-3 text-white">¡Empezá a agregar películas!</h2>
+                    <p class="text-gray-400 text-lg mb-8 max-w-xs mx-auto">Conectate y buscá tus favoritas para el ranking</p>
+                    <button onclick="showSearchView()" class="px-8 py-4 bg-accent-yellow text-dark-900 rounded-xl font-bold text-lg hover:bg-accent-yellow/90 transition-colors shadow-lg shadow-accent-yellow/20">
                         🔍 Buscar películas
                     </button>
                 </div>
