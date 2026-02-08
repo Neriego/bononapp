@@ -1,6 +1,6 @@
 /**
  * BononaMovie - App de Películas para Ger & Magui
- * Sistema de ranking compartido con votos semanales
+ * Sistema de ranking compartido con Firebase
  * Powered by TMDB API
  */
 
@@ -63,6 +63,11 @@ const genreMap = {
 // ===== State =====
 let currentView = 'home';
 let moviesCache = {};
+let rankingData = [];
+
+// ===== Firebase References =====
+const rankingRef = window.db ? window.db.ref('ranking') : null;
+const votesRef = window.db ? window.db.ref('votes') : null;
 
 // ===== User Management =====
 
@@ -100,19 +105,24 @@ function initializeUserData(username) {
         localStorage.setItem(favKey, JSON.stringify([]));
     }
 
-    const votesKey = `bononaVotes_${username}`;
-    const currentWeek = getCurrentWeek();
-    const votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
+    // Initialize votes in Firebase
+    initializeVotesInFirebase(username);
+}
 
-    if (votesData.week !== currentWeek) {
-        localStorage.setItem(votesKey, JSON.stringify({
+async function initializeVotesInFirebase(username) {
+    if (!votesRef) return;
+
+    const currentWeek = getCurrentWeek();
+    const userVotesRef = votesRef.child(username);
+
+    const snapshot = await userVotesRef.once('value');
+    const data = snapshot.val();
+
+    if (!data || data.week !== currentWeek) {
+        await userVotesRef.set({
             week: currentWeek,
             remaining: 5
-        }));
-    }
-
-    if (!localStorage.getItem('bononaRanking')) {
-        localStorage.setItem('bononaRanking', JSON.stringify([]));
+        });
     }
 }
 
@@ -123,13 +133,55 @@ function checkAuth() {
         elements.loginModal.classList.add('hidden');
         elements.mainContent.classList.remove('hidden');
         updateUI();
+        setupFirebaseListeners();
     } else {
         elements.loginModal.classList.remove('hidden');
         elements.mainContent.classList.add('hidden');
     }
 }
 
-// ===== Favorites Management =====
+// ===== Firebase Listeners =====
+
+function setupFirebaseListeners() {
+    if (!rankingRef) {
+        console.warn('Firebase not available, using localStorage');
+        return;
+    }
+
+    // Listen for ranking changes
+    rankingRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        rankingData = data ? Object.values(data) : [];
+        rankingData.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+
+        if (elements.rankingCount) {
+            elements.rankingCount.textContent = rankingData.length;
+        }
+
+        // If we're viewing ranking, refresh it
+        if (currentView === 'ranking') {
+            showRanking();
+        }
+    });
+
+    // Listen for votes changes
+    const user = getCurrentUser();
+    if (user && votesRef) {
+        votesRef.child(user).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                updateVotesDisplay(data.remaining || 0);
+            }
+        });
+    }
+}
+
+function updateVotesDisplay(remaining) {
+    if (elements.votesRemaining) elements.votesRemaining.textContent = remaining;
+    if (elements.sidebarVotes) elements.sidebarVotes.textContent = `${remaining} votos restantes`;
+}
+
+// ===== Favorites Management (Local) =====
 
 function getFavorites() {
     const user = getCurrentUser();
@@ -174,17 +226,17 @@ function toggleFavorite(movie, event) {
     }
 }
 
-// ===== Ranking Management =====
+// ===== Ranking Management (Firebase) =====
 
 function getRanking() {
-    return JSON.parse(localStorage.getItem('bononaRanking') || '[]');
+    return rankingData;
 }
 
 function isInRanking(movieId) {
-    return getRanking().some(m => m.id === movieId);
+    return rankingData.some(m => m.id === movieId);
 }
 
-function addToRanking(movie, event) {
+async function addToRanking(movie, event) {
     if (event) event.stopPropagation();
 
     if (isInRanking(movie.id)) {
@@ -192,130 +244,132 @@ function addToRanking(movie, event) {
         return;
     }
 
-    let ranking = getRanking();
-    ranking.push({
+    const movieData = {
         id: movie.id,
         title: movie.title,
-        poster_path: movie.poster_path,
-        release_date: movie.release_date,
-        vote_average: movie.vote_average,
+        poster_path: movie.poster_path || null,
+        release_date: movie.release_date || null,
+        vote_average: movie.vote_average || 0,
         genre_ids: movie.genre_ids || movie.genres?.map(g => g.id) || [],
         votes: 0,
-        votedBy: {}
-    });
+        addedBy: getCurrentUser(),
+        addedAt: Date.now()
+    };
 
-    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
+    if (rankingRef) {
+        await rankingRef.child(movie.id.toString()).set(movieData);
+    }
+
     moviesCache[movie.id] = movie;
-    updateUI();
-
     closeSearchModal();
     alert(`"${movie.title}" agregada al ranking 🎬`);
 }
 
-function removeFromRanking(movieId, event) {
+async function removeFromRanking(movieId, event) {
     if (event) event.stopPropagation();
 
-    let ranking = getRanking();
-    ranking = ranking.filter(m => m.id !== movieId);
-    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
-    updateUI();
+    if (rankingRef) {
+        await rankingRef.child(movieId.toString()).remove();
+    }
 
     if (currentView === 'ranking') {
         showRanking();
     }
 }
 
-function resetRanking() {
+async function resetRanking() {
     if (confirm('¿Seguro que querés borrar todo el ranking?')) {
-        localStorage.setItem('bononaRanking', JSON.stringify([]));
-        updateUI();
+        if (rankingRef) {
+            await rankingRef.remove();
+        }
         alert('Ranking borrado');
     }
 }
 
-// ===== Votes Management =====
+// ===== Votes Management (Firebase) =====
 
-function getRemainingVotes(username = null) {
+async function getRemainingVotes(username = null) {
     const user = username || getCurrentUser();
-    if (!user) return 0;
+    if (!user || !votesRef) return 0;
 
-    const votesKey = `bononaVotes_${user}`;
     const currentWeek = getCurrentWeek();
-    const votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
+    const snapshot = await votesRef.child(user).once('value');
+    const data = snapshot.val();
 
-    if (votesData.week !== currentWeek) {
-        const newData = { week: currentWeek, remaining: 5 };
-        localStorage.setItem(votesKey, JSON.stringify(newData));
+    if (!data || data.week !== currentWeek) {
+        await votesRef.child(user).set({ week: currentWeek, remaining: 5 });
         return 5;
     }
 
-    return votesData.remaining || 0;
+    return data.remaining || 0;
 }
 
 function getUserVotesForMovie(movieId) {
     const user = getCurrentUser();
     if (!user) return 0;
 
-    const ranking = getRanking();
-    const movie = ranking.find(m => m.id === movieId);
+    const movie = rankingData.find(m => m.id === movieId);
     return movie?.votedBy?.[user] || 0;
 }
 
-function voteForMovie(movieId, event) {
+async function voteForMovie(movieId, event) {
     if (event) event.stopPropagation();
 
     const user = getCurrentUser();
     if (!user) return;
 
-    const remaining = getRemainingVotes();
+    const remaining = await getRemainingVotes();
     if (remaining <= 0) {
         alert('¡Ya usaste todos tus votos de esta semana! 🗳️');
         return;
     }
 
-    const votesKey = `bononaVotes_${user}`;
-    const votesData = JSON.parse(localStorage.getItem(votesKey));
-    votesData.remaining = remaining - 1;
-    localStorage.setItem(votesKey, JSON.stringify(votesData));
+    // Update user votes
+    const currentWeek = getCurrentWeek();
+    await votesRef.child(user).set({
+        week: currentWeek,
+        remaining: remaining - 1
+    });
 
-    let ranking = getRanking();
-    let movieInRanking = ranking.find(m => m.id === movieId);
+    // Update movie votes
+    const movieRef = rankingRef.child(movieId.toString());
+    const snapshot = await movieRef.once('value');
+    const movie = snapshot.val();
 
-    if (movieInRanking) {
-        movieInRanking.votes = (movieInRanking.votes || 0) + 1;
-        movieInRanking.votedBy = movieInRanking.votedBy || {};
-        movieInRanking.votedBy[user] = (movieInRanking.votedBy[user] || 0) + 1;
+    if (movie) {
+        const newVotes = (movie.votes || 0) + 1;
+        const votedBy = movie.votedBy || {};
+        votedBy[user] = (votedBy[user] || 0) + 1;
 
-        ranking.sort((a, b) => b.votes - a.votes);
-        localStorage.setItem('bononaRanking', JSON.stringify(ranking));
+        await movieRef.update({
+            votes: newVotes,
+            votedBy: votedBy
+        });
     }
 
     updateUI();
-
-    if (currentView === 'ranking') {
-        showRanking();
-    }
 }
 
-function adjustVotes(username, amount) {
-    const votesKey = `bononaVotes_${username}`;
-    const currentWeek = getCurrentWeek();
-    let votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
+async function adjustVotes(username, amount) {
+    if (!votesRef) return;
 
-    if (votesData.week !== currentWeek) {
-        votesData = { week: currentWeek, remaining: 5 };
+    const currentWeek = getCurrentWeek();
+    const snapshot = await votesRef.child(username).once('value');
+    let data = snapshot.val();
+
+    if (!data || data.week !== currentWeek) {
+        data = { week: currentWeek, remaining: 5 };
     }
 
-    votesData.remaining = Math.max(0, (votesData.remaining || 0) + amount);
-    localStorage.setItem(votesKey, JSON.stringify(votesData));
+    data.remaining = Math.max(0, (data.remaining || 0) + amount);
+    await votesRef.child(username).set(data);
 
-    updateUI();
     updateSettingsDisplay();
 }
 
-function updateSettingsDisplay() {
-    const gerVotes = getRemainingVotes('Ger');
-    const maguiVotes = getRemainingVotes('Magui');
+async function updateSettingsDisplay() {
+    const gerVotes = await getRemainingVotes('Ger');
+    const maguiVotes = await getRemainingVotes('Magui');
 
     if (elements.gerVotesDisplay) {
         elements.gerVotesDisplay.textContent = `${gerVotes} votos restantes`;
@@ -327,22 +381,20 @@ function updateSettingsDisplay() {
 
 // ===== UI Updates =====
 
-function updateUI() {
+async function updateUI() {
     const user = getCurrentUser();
     if (!user) return;
 
-    const remaining = getRemainingVotes();
+    const remaining = await getRemainingVotes();
     const favorites = getFavorites();
-    const ranking = getRanking();
 
     if (elements.sidebarUsername) elements.sidebarUsername.textContent = user;
     if (elements.welcomeUser) elements.welcomeUser.textContent = `¡Hola, ${user}! 👋`;
 
-    if (elements.votesRemaining) elements.votesRemaining.textContent = remaining;
-    if (elements.sidebarVotes) elements.sidebarVotes.textContent = `${remaining} votos restantes`;
+    updateVotesDisplay(remaining);
 
     if (elements.favoritesCount) elements.favoritesCount.textContent = favorites.length;
-    if (elements.rankingCount) elements.rankingCount.textContent = ranking.length;
+    if (elements.rankingCount) elements.rankingCount.textContent = rankingData.length;
 }
 
 // ===== Sidebar =====
@@ -715,5 +767,5 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ===== Initialization =====
-console.log('🎬 BononaMovie initialized');
+console.log('🎬 BononaMovie initialized with Firebase');
 checkAuth();

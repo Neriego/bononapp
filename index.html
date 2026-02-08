@@ -385,6 +385,23 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCiAPu7IOzMGLkcr1NBNuIW_Wy_TvQunO8",
+            authDomain: "bononapp.firebaseapp.com",
+            databaseURL: "https://bononapp-default-rtdb.firebaseio.com",
+            projectId: "bononapp",
+            storageBucket: "bononapp.firebasestorage.app",
+            messagingSenderId: "397524302059",
+            appId: "1:397524302059:web:eafd1e897c0c3f64ee66ae"
+        };
+        firebase.initializeApp(firebaseConfig);
+        window.db = firebase.database();
+    </script>
     <script src="app.js"></script>
 </body>
 
