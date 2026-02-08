@@ -193,7 +193,6 @@ function showSearchView(pushState = true) {
     document.getElementById('navSearch').classList.remove('text-gray-500');
     document.getElementById('navSearch').classList.add('text-accent-yellow');
     document.getElementById('votesChip').classList.add('hidden'); // Hide votes chip
-    document.getElementById('searchInput').focus();
 }
 
 function hideSearchView() {
