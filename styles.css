@@ -179,6 +179,25 @@ html {
     color: #1a1a25;
 }
 
+/* Votes Badge */
+.votes-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 6px 10px;
+    background: rgba(18, 18, 26, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 5;
+    color: #fbbf24;
+}
+
 /* ===== Card Action Buttons ===== */
 .card-actions {
     position: absolute;

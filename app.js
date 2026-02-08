@@ -1,8 +1,7 @@
 /**
  * BononaMovie - App de Películas para Ger & Magui
- * Sistema de favoritos y ranking con votos semanales
+ * Sistema de ranking compartido con votos semanales
  * Powered by TMDB API
- * =====================================
  */
 
 // ===== API Configuration =====
@@ -18,10 +17,13 @@ const elements = {
     loginModal: document.getElementById('loginModal'),
     mainContent: document.getElementById('mainContent'),
     sidebar: document.getElementById('sidebar'),
+    heroSection: document.getElementById('heroSection'),
+    moviesSection: document.getElementById('moviesSection'),
+    settingsSection: document.getElementById('settingsSection'),
+    searchModal: document.getElementById('searchModal'),
     searchInput: document.getElementById('searchInput'),
-    searchInputMobile: document.getElementById('searchInputMobile'),
     searchBtn: document.getElementById('searchBtn'),
-    searchBtnMobile: document.getElementById('searchBtnMobile'),
+    searchResults: document.getElementById('searchResults'),
     moviesGrid: document.getElementById('moviesGrid'),
     loadingIndicator: document.getElementById('loadingIndicator'),
     sectionHeader: document.getElementById('sectionHeader'),
@@ -31,20 +33,20 @@ const elements = {
     emptyState: document.getElementById('emptyState'),
     errorState: document.getElementById('errorState'),
     errorMessage: document.getElementById('errorMessage'),
-    heroSection: document.getElementById('heroSection'),
     movieModal: document.getElementById('movieModal'),
     modalContent: document.getElementById('modalContent'),
     closeModal: document.getElementById('closeModal'),
     // User elements
-    headerUsername: document.getElementById('headerUsername'),
     sidebarUsername: document.getElementById('sidebarUsername'),
     sidebarVotes: document.getElementById('sidebarVotes'),
     votesRemaining: document.getElementById('votesRemaining'),
     welcomeUser: document.getElementById('welcomeUser'),
     favoritesCount: document.getElementById('favoritesCount'),
     rankingCount: document.getElementById('rankingCount'),
+    gerVotesDisplay: document.getElementById('gerVotesDisplay'),
+    maguiVotesDisplay: document.getElementById('maguiVotesDisplay'),
     // Buttons
-    exploreBtn: document.getElementById('exploreBtn'),
+    addToRankingBtn: document.getElementById('addToRankingBtn'),
     rankingBtn: document.getElementById('rankingBtn'),
     retryBtn: document.getElementById('retryBtn')
 };
@@ -60,8 +62,6 @@ const genreMap = {
 
 // ===== State =====
 let currentView = 'home';
-let currentQuery = '';
-let lastAction = null;
 let moviesCache = {};
 
 // ===== User Management =====
@@ -95,13 +95,11 @@ function getCurrentUser() {
 }
 
 function initializeUserData(username) {
-    // Initialize favorites if not exists
     const favKey = `bononaFavorites_${username}`;
     if (!localStorage.getItem(favKey)) {
         localStorage.setItem(favKey, JSON.stringify([]));
     }
 
-    // Initialize/reset weekly votes
     const votesKey = `bononaVotes_${username}`;
     const currentWeek = getCurrentWeek();
     const votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
@@ -113,7 +111,6 @@ function initializeUserData(username) {
         }));
     }
 
-    // Initialize ranking if not exists
     if (!localStorage.getItem('bononaRanking')) {
         localStorage.setItem('bononaRanking', JSON.stringify([]));
     }
@@ -164,7 +161,7 @@ function toggleFavorite(movie, event) {
             poster_path: movie.poster_path,
             release_date: movie.release_date,
             vote_average: movie.vote_average,
-            genre_ids: movie.genre_ids || []
+            genre_ids: movie.genre_ids || movie.genres?.map(g => g.id) || []
         });
     }
 
@@ -172,27 +169,80 @@ function toggleFavorite(movie, event) {
     moviesCache[movie.id] = movie;
     updateUI();
 
-    // Re-render if in favorites view
     if (currentView === 'favorites') {
         showFavorites();
     }
 }
 
-// ===== Ranking & Votes Management =====
+// ===== Ranking Management =====
 
 function getRanking() {
     return JSON.parse(localStorage.getItem('bononaRanking') || '[]');
 }
 
-function getRemainingVotes() {
-    const user = getCurrentUser();
+function isInRanking(movieId) {
+    return getRanking().some(m => m.id === movieId);
+}
+
+function addToRanking(movie, event) {
+    if (event) event.stopPropagation();
+
+    if (isInRanking(movie.id)) {
+        alert('Esta película ya está en el ranking');
+        return;
+    }
+
+    let ranking = getRanking();
+    ranking.push({
+        id: movie.id,
+        title: movie.title,
+        poster_path: movie.poster_path,
+        release_date: movie.release_date,
+        vote_average: movie.vote_average,
+        genre_ids: movie.genre_ids || movie.genres?.map(g => g.id) || [],
+        votes: 0,
+        votedBy: {}
+    });
+
+    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
+    moviesCache[movie.id] = movie;
+    updateUI();
+
+    closeSearchModal();
+    alert(`"${movie.title}" agregada al ranking 🎬`);
+}
+
+function removeFromRanking(movieId, event) {
+    if (event) event.stopPropagation();
+
+    let ranking = getRanking();
+    ranking = ranking.filter(m => m.id !== movieId);
+    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
+    updateUI();
+
+    if (currentView === 'ranking') {
+        showRanking();
+    }
+}
+
+function resetRanking() {
+    if (confirm('¿Seguro que querés borrar todo el ranking?')) {
+        localStorage.setItem('bononaRanking', JSON.stringify([]));
+        updateUI();
+        alert('Ranking borrado');
+    }
+}
+
+// ===== Votes Management =====
+
+function getRemainingVotes(username = null) {
+    const user = username || getCurrentUser();
     if (!user) return 0;
 
     const votesKey = `bononaVotes_${user}`;
     const currentWeek = getCurrentWeek();
     const votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
 
-    // Reset if new week
     if (votesData.week !== currentWeek) {
         const newData = { week: currentWeek, remaining: 5 };
         localStorage.setItem(votesKey, JSON.stringify(newData));
@@ -200,12 +250,6 @@ function getRemainingVotes() {
     }
 
     return votesData.remaining || 0;
-}
-
-function getMovieVotes(movieId) {
-    const ranking = getRanking();
-    const movie = ranking.find(m => m.id === movieId);
-    return movie ? movie.votes : 0;
 }
 
 function getUserVotesForMovie(movieId) {
@@ -217,7 +261,7 @@ function getUserVotesForMovie(movieId) {
     return movie?.votedBy?.[user] || 0;
 }
 
-function voteForMovie(movie, event) {
+function voteForMovie(movieId, event) {
     if (event) event.stopPropagation();
 
     const user = getCurrentUser();
@@ -229,82 +273,55 @@ function voteForMovie(movie, event) {
         return;
     }
 
-    // Update votes count
     const votesKey = `bononaVotes_${user}`;
     const votesData = JSON.parse(localStorage.getItem(votesKey));
     votesData.remaining = remaining - 1;
     localStorage.setItem(votesKey, JSON.stringify(votesData));
 
-    // Update ranking
     let ranking = getRanking();
-    let movieInRanking = ranking.find(m => m.id === movie.id);
+    let movieInRanking = ranking.find(m => m.id === movieId);
 
     if (movieInRanking) {
         movieInRanking.votes = (movieInRanking.votes || 0) + 1;
         movieInRanking.votedBy = movieInRanking.votedBy || {};
         movieInRanking.votedBy[user] = (movieInRanking.votedBy[user] || 0) + 1;
-    } else {
-        ranking.push({
-            id: movie.id,
-            title: movie.title,
-            poster_path: movie.poster_path,
-            release_date: movie.release_date,
-            vote_average: movie.vote_average,
-            genre_ids: movie.genre_ids || [],
-            votes: 1,
-            votedBy: { [user]: 1 }
-        });
+
+        ranking.sort((a, b) => b.votes - a.votes);
+        localStorage.setItem('bononaRanking', JSON.stringify(ranking));
     }
 
-    // Sort by votes
-    ranking.sort((a, b) => b.votes - a.votes);
-    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
-
-    moviesCache[movie.id] = movie;
     updateUI();
 
-    // Re-render if in ranking view
     if (currentView === 'ranking') {
         showRanking();
     }
 }
 
-function removeVoteFromMovie(movieId, event) {
-    if (event) event.stopPropagation();
+function adjustVotes(username, amount) {
+    const votesKey = `bononaVotes_${username}`;
+    const currentWeek = getCurrentWeek();
+    let votesData = JSON.parse(localStorage.getItem(votesKey) || '{}');
 
-    const user = getCurrentUser();
-    if (!user) return;
-
-    const userVotes = getUserVotesForMovie(movieId);
-    if (userVotes <= 0) return;
-
-    // Refund vote
-    const votesKey = `bononaVotes_${user}`;
-    const votesData = JSON.parse(localStorage.getItem(votesKey));
-    votesData.remaining = (votesData.remaining || 0) + 1;
-    localStorage.setItem(votesKey, JSON.stringify(votesData));
-
-    // Update ranking
-    let ranking = getRanking();
-    let movieInRanking = ranking.find(m => m.id === movieId);
-
-    if (movieInRanking) {
-        movieInRanking.votes = Math.max(0, (movieInRanking.votes || 1) - 1);
-        movieInRanking.votedBy[user] = Math.max(0, (movieInRanking.votedBy[user] || 1) - 1);
-
-        // Remove if no votes left
-        if (movieInRanking.votes <= 0) {
-            ranking = ranking.filter(m => m.id !== movieId);
-        }
+    if (votesData.week !== currentWeek) {
+        votesData = { week: currentWeek, remaining: 5 };
     }
 
-    ranking.sort((a, b) => b.votes - a.votes);
-    localStorage.setItem('bononaRanking', JSON.stringify(ranking));
+    votesData.remaining = Math.max(0, (votesData.remaining || 0) + amount);
+    localStorage.setItem(votesKey, JSON.stringify(votesData));
 
     updateUI();
+    updateSettingsDisplay();
+}
 
-    if (currentView === 'ranking') {
-        showRanking();
+function updateSettingsDisplay() {
+    const gerVotes = getRemainingVotes('Ger');
+    const maguiVotes = getRemainingVotes('Magui');
+
+    if (elements.gerVotesDisplay) {
+        elements.gerVotesDisplay.textContent = `${gerVotes} votos restantes`;
+    }
+    if (elements.maguiVotesDisplay) {
+        elements.maguiVotesDisplay.textContent = `${maguiVotes} votos restantes`;
     }
 }
 
@@ -318,17 +335,12 @@ function updateUI() {
     const favorites = getFavorites();
     const ranking = getRanking();
 
-    // Update header
-    if (elements.headerUsername) elements.headerUsername.textContent = user;
     if (elements.sidebarUsername) elements.sidebarUsername.textContent = user;
     if (elements.welcomeUser) elements.welcomeUser.textContent = `¡Hola, ${user}! 👋`;
 
-    // Update votes
-    const votesText = `${remaining} voto${remaining !== 1 ? 's' : ''}`;
-    if (elements.votesRemaining) elements.votesRemaining.textContent = votesText;
-    if (elements.sidebarVotes) elements.sidebarVotes.textContent = `${votesText} restantes`;
+    if (elements.votesRemaining) elements.votesRemaining.textContent = remaining;
+    if (elements.sidebarVotes) elements.sidebarVotes.textContent = `${remaining} votos restantes`;
 
-    // Update counts
     if (elements.favoritesCount) elements.favoritesCount.textContent = favorites.length;
     if (elements.rankingCount) elements.rankingCount.textContent = ranking.length;
 }
@@ -353,45 +365,122 @@ function closeSidebar() {
 
 // ===== Navigation =====
 
-function goHome() {
-    currentView = 'home';
-    elements.heroSection.classList.remove('hidden');
-    hideSectionHeader();
-    elements.moviesGrid.innerHTML = '';
+function hideAllSections() {
+    elements.heroSection.classList.add('hidden');
+    elements.moviesSection.classList.add('hidden');
+    elements.settingsSection.classList.add('hidden');
     hideEmptyState();
     hideError();
 }
 
+function goHome() {
+    currentView = 'home';
+    hideAllSections();
+    elements.heroSection.classList.remove('hidden');
+    hideSectionHeader();
+    elements.moviesGrid.innerHTML = '';
+}
+
 function showFavorites() {
     currentView = 'favorites';
-    hideHero();
-    hideError();
+    hideAllSections();
+    elements.moviesSection.classList.remove('hidden');
 
     const favorites = getFavorites();
 
     if (favorites.length === 0) {
-        showSectionHeader('💜 Tus Favoritas', 'Agregá películas a favoritos para verlas acá', 0);
+        showSectionHeader('💜 Tus Favoritas', 'Agregá películas a favoritos', 0);
         showEmptyState();
         elements.moviesGrid.innerHTML = '';
     } else {
-        displayMovies(favorites, '💜 Tus Favoritas', 'Las películas que guardaste para ver');
+        displayMovies(favorites, '💜 Tus Favoritas', 'Las películas que guardaste');
     }
 }
 
 function showRanking() {
     currentView = 'ranking';
-    hideHero();
-    hideError();
+    hideAllSections();
+    elements.moviesSection.classList.remove('hidden');
 
     const ranking = getRanking();
 
     if (ranking.length === 0) {
-        showSectionHeader('🏆 Ranking', 'Votá películas para armar el ranking', 0);
+        showSectionHeader('🏆 Ranking', 'Agregá películas para votar', 0);
         showEmptyState();
         elements.moviesGrid.innerHTML = '';
     } else {
-        displayMovies(ranking, '🏆 Ranking', 'Las películas más votadas para ver juntos', true);
+        displayMovies(ranking, '🏆 Ranking', 'Votá las que quieras ver primero', true);
     }
+}
+
+function showSettings() {
+    currentView = 'settings';
+    hideAllSections();
+    elements.settingsSection.classList.remove('hidden');
+    updateSettingsDisplay();
+}
+
+// ===== Search Modal =====
+
+function openSearchModal() {
+    elements.searchModal.classList.remove('hidden');
+    elements.searchInput.value = '';
+    elements.searchInput.focus();
+    elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">Escribí el nombre de una película</p>';
+}
+
+function closeSearchModal() {
+    elements.searchModal.classList.add('hidden');
+}
+
+async function searchMovies(query) {
+    if (!query.trim()) return;
+
+    elements.searchResults.innerHTML = '<div class="flex justify-center py-8"><div class="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin"></div></div>';
+
+    try {
+        const data = await fetchFromTMDB('/search/movie', { query });
+        displaySearchResults(data.results);
+    } catch (error) {
+        elements.searchResults.innerHTML = '<p class="text-center text-red-400 py-8">Error al buscar</p>';
+    }
+}
+
+function displaySearchResults(movies) {
+    if (!movies || movies.length === 0) {
+        elements.searchResults.innerHTML = '<p class="text-center text-gray-500 py-8">No se encontraron películas</p>';
+        return;
+    }
+
+    elements.searchResults.innerHTML = movies.slice(0, 10).map(movie => {
+        const posterUrl = movie.poster_path
+            ? `${API_CONFIG.imageBaseUrl}/w92${movie.poster_path}`
+            : null;
+        const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+        const inRanking = isInRanking(movie.id);
+
+        moviesCache[movie.id] = movie;
+
+        return `
+            <div class="flex items-center gap-3 p-3 bg-dark-700/50 rounded-xl mb-2 ${inRanking ? 'opacity-50' : ''}">
+                ${posterUrl
+                ? `<img src="${posterUrl}" class="w-12 h-16 rounded-lg object-cover" alt="">`
+                : `<div class="w-12 h-16 rounded-lg bg-dark-600 flex items-center justify-center text-gray-500 text-xs">?</div>`
+            }
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium truncate">${movie.title}</p>
+                    <p class="text-sm text-gray-400">${year}</p>
+                </div>
+                <button 
+                    onclick="addToRanking(moviesCache[${movie.id}], event)"
+                    class="px-4 py-2 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-gradient-to-r from-accent-purple to-accent-pink'} rounded-xl text-sm font-medium"
+                    ${inRanking ? 'disabled' : ''}
+                >
+                    ${inRanking ? 'Ya está' : '+ Agregar'}
+                </button>
+            </div>
+        `;
+    }).join('');
 }
 
 // ===== API Functions =====
@@ -405,59 +494,14 @@ async function fetchFromTMDB(endpoint, params = {}) {
         url.searchParams.append(key, value);
     });
 
-    try {
-        const response = await fetch(url.toString());
+    const response = await fetch(url.toString());
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        if (!response.ok) {
-            if (response.status === 401) {
-                throw new Error('API Key inválida.');
-            }
-            throw new Error(`Error HTTP: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Cache movies
-        if (data.results) {
-            data.results.forEach(m => moviesCache[m.id] = m);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error fetching from TMDB:', error);
-        throw error;
+    const data = await response.json();
+    if (data.results) {
+        data.results.forEach(m => moviesCache[m.id] = m);
     }
-}
-
-async function searchMovies(query) {
-    if (!query.trim()) return;
-
-    currentView = 'search';
-    currentQuery = query;
-    lastAction = { type: 'search', query };
-    showLoading();
-    hideHero();
-
-    try {
-        const data = await fetchFromTMDB('/search/movie', { query });
-        displayMovies(data.results, `Resultados para "${query}"`, `Encontramos estas películas`);
-    } catch (error) {
-        showError(error.message);
-    }
-}
-
-async function getPopularMovies() {
-    currentView = 'popular';
-    lastAction = { type: 'popular' };
-    showLoading();
-    hideHero();
-
-    try {
-        const data = await fetchFromTMDB('/movie/popular');
-        displayMovies(data.results, '🔥 Películas Populares', 'Las más vistas del momento');
-    } catch (error) {
-        showError(error.message);
-    }
+    return data;
 }
 
 async function getMovieDetails(movieId) {
@@ -466,11 +510,11 @@ async function getMovieDetails(movieId) {
         moviesCache[movieId] = data;
         showMovieModal(data);
     } catch (error) {
-        console.error('Error getting movie details:', error);
+        console.error('Error:', error);
     }
 }
 
-// ===== UI Functions =====
+// ===== Display Functions =====
 
 function displayMovies(movies, title, subtitle, isRanking = false) {
     hideLoading();
@@ -485,10 +529,9 @@ function displayMovies(movies, title, subtitle, isRanking = false) {
     showSectionHeader(title, subtitle, movies.length);
 
     elements.moviesGrid.innerHTML = movies.map((movie, index) =>
-        createMovieCard(movie, isRanking ? index + 1 : null)
+        createMovieCard(movie, isRanking ? index + 1 : null, isRanking)
     ).join('');
 
-    // Add click events
     document.querySelectorAll('.movie-card').forEach(card => {
         card.addEventListener('click', () => {
             const movieId = parseInt(card.dataset.movieId);
@@ -497,84 +540,46 @@ function displayMovies(movies, title, subtitle, isRanking = false) {
     });
 }
 
-function createMovieCard(movie, rankPosition = null) {
+function createMovieCard(movie, rankPosition = null, isRanking = false) {
     const posterUrl = movie.poster_path
         ? `${API_CONFIG.imageBaseUrl}/w500${movie.poster_path}`
         : null;
 
     const year = movie.release_date
         ? new Date(movie.release_date).getFullYear()
-        : 'N/A';
+        : '';
 
-    const rating = movie.vote_average
-        ? movie.vote_average.toFixed(1)
-        : 'N/A';
-
-    const genres = movie.genre_ids
-        ? movie.genre_ids.slice(0, 2).map(id => genreMap[id] || 'Otro')
-        : [];
-
-    const isFav = isFavorite(movie.id);
-    const votes = movie.votes || getMovieVotes(movie.id);
+    const votes = movie.votes || 0;
     const userVotes = getUserVotesForMovie(movie.id);
-    const remaining = getRemainingVotes();
 
     const posterHTML = posterUrl
         ? `<img src="${posterUrl}" alt="${movie.title}" loading="lazy">`
-        : `<div class="no-poster">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <span>Sin imagen</span>
-           </div>`;
+        : `<div class="no-poster"><span>?</span></div>`;
 
     return `
         <article class="movie-card glass-card" data-movie-id="${movie.id}">
             <div class="movie-poster">
                 ${posterHTML}
                 ${rankPosition ? `<div class="rank-badge">#${rankPosition}</div>` : ''}
-                <div class="rating-badge">
-                    <svg fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                    </svg>
-                    ${rating}
-                </div>
-                <!-- Action Buttons -->
-                <div class="card-actions">
-                    <button 
-                        class="action-btn favorite-btn ${isFav ? 'active' : ''}" 
-                        onclick="toggleFavorite(moviesCache[${movie.id}], event)"
-                        title="${isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}"
-                    >
-                        <svg fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                ${isRanking ? `
+                    <div class="votes-badge">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                         </svg>
-                    </button>
-                    <button 
-                        class="action-btn vote-btn ${userVotes > 0 ? 'active' : ''}" 
-                        onclick="voteForMovie(moviesCache[${movie.id}], event)"
-                        title="${remaining > 0 ? 'Votar para ver' : 'Sin votos'}"
-                        ${remaining <= 0 && userVotes <= 0 ? 'disabled' : ''}
-                    >
-                        <svg fill="${userVotes > 0 ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                        </svg>
-                        ${votes > 0 ? `<span class="vote-count">${votes}</span>` : ''}
-                    </button>
-                </div>
+                        ${votes}
+                    </div>
+                ` : ''}
             </div>
             <div class="movie-info">
                 <h3 class="movie-title">${movie.title}</h3>
-                <p class="movie-year">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    ${year}
-                </p>
-                ${genres.length > 0 ? `
-                    <div class="genre-tags">
-                        ${genres.map(genre => `<span class="genre-tag">${genre}</span>`).join('')}
-                    </div>
+                <p class="movie-year">${year}</p>
+                ${isRanking ? `
+                    <button 
+                        onclick="voteForMovie(${movie.id}, event)"
+                        class="vote-btn mt-2 w-full py-2 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : 'bg-accent-purple/20 text-accent-purple border-accent-purple/30'} border rounded-lg text-sm font-medium"
+                    >
+                        ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
+                    </button>
                 ` : ''}
             </div>
         </article>
@@ -583,30 +588,18 @@ function createMovieCard(movie, rankPosition = null) {
 
 function showMovieModal(movie) {
     const backdropUrl = movie.backdrop_path
-        ? `${API_CONFIG.imageBaseUrl}/original${movie.backdrop_path}`
+        ? `${API_CONFIG.imageBaseUrl}/w780${movie.backdrop_path}`
         : movie.poster_path
-            ? `${API_CONFIG.imageBaseUrl}/original${movie.poster_path}`
+            ? `${API_CONFIG.imageBaseUrl}/w500${movie.poster_path}`
             : null;
 
     const year = movie.release_date
         ? new Date(movie.release_date).getFullYear()
-        : 'N/A';
-
-    const runtime = movie.runtime
-        ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
-        : 'N/A';
+        : '';
 
     const rating = movie.vote_average || 0;
-    const fullStars = Math.floor(rating / 2);
-    const emptyStars = 5 - fullStars;
-
-    const genres = movie.genres
-        ? movie.genres.map(g => g.name).join(', ')
-        : 'N/A';
-
+    const inRanking = isInRanking(movie.id);
     const isFav = isFavorite(movie.id);
-    const userVotes = getUserVotesForMovie(movie.id);
-    const remaining = getRemainingVotes();
 
     elements.modalContent.innerHTML = `
         ${backdropUrl ? `
@@ -617,63 +610,27 @@ function showMovieModal(movie) {
         <div class="modal-content">
             <h2 class="modal-title">${movie.title}</h2>
             
-            <div class="modal-meta">
-                <div class="modal-meta-item">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    ${year}
-                </div>
-                <div class="modal-meta-item">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    ${runtime}
-                </div>
-                <div class="modal-meta-item">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path>
-                    </svg>
-                    ${genres}
-                </div>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <span class="px-3 py-1 bg-dark-700 rounded-lg text-sm">${year}</span>
+                <span class="px-3 py-1 bg-yellow-400/20 text-yellow-400 rounded-lg text-sm">⭐ ${rating.toFixed(1)}</span>
             </div>
 
-            <p class="modal-overview">${movie.overview || 'Sin descripción disponible.'}</p>
+            <p class="text-gray-400 text-sm mb-6 leading-relaxed">${movie.overview || 'Sin descripción.'}</p>
 
-            <!-- Action Buttons -->
-            <div class="modal-actions">
+            <div class="flex flex-col gap-2">
                 <button 
-                    class="modal-action-btn ${isFav ? 'active' : ''}"
-                    onclick="toggleFavorite(moviesCache[${movie.id}], event); document.getElementById('movieModal').classList.add('hidden'); document.body.style.overflow = '';"
+                    onclick="addToRanking(moviesCache[${movie.id}], event); closeMovieModal();"
+                    class="w-full py-3 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-gradient-to-r from-accent-purple to-accent-pink'} rounded-xl font-medium"
+                    ${inRanking ? 'disabled' : ''}
                 >
-                    <svg fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-                    </svg>
-                    ${isFav ? 'En Favoritas' : 'Agregar a Favoritas'}
+                    ${inRanking ? '✓ Ya está en el ranking' : '➕ Agregar al Ranking'}
                 </button>
                 <button 
-                    class="modal-action-btn vote ${userVotes > 0 ? 'active' : ''}"
-                    onclick="voteForMovie(moviesCache[${movie.id}], event); document.getElementById('movieModal').classList.add('hidden'); document.body.style.overflow = '';"
-                    ${remaining <= 0 && userVotes <= 0 ? 'disabled' : ''}
+                    onclick="toggleFavorite(moviesCache[${movie.id}], event); closeMovieModal();"
+                    class="w-full py-3 ${isFav ? 'bg-accent-pink/20 text-accent-pink border-accent-pink/30' : 'bg-dark-700 border-white/10'} border rounded-xl font-medium"
                 >
-                    <svg fill="${userVotes > 0 ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                    </svg>
-                    ${userVotes > 0 ? `Votada (${userVotes})` : 'Votar para Ver'}
+                    ${isFav ? '💜 En Favoritas' : '🤍 Agregar a Favoritas'}
                 </button>
-            </div>
-
-            <div class="modal-rating">
-                <span class="modal-rating-score">${rating.toFixed(1)}</span>
-                <div>
-                    <div class="modal-rating-stars">
-                        ${'<svg class="star-filled" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>'.repeat(fullStars)}
-                        ${'<svg class="star-empty" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>'.repeat(emptyStars)}
-                    </div>
-                    <p style="font-size: 0.875rem; color: rgba(255,255,255,0.5); margin-top: 4px;">
-                        ${movie.vote_count?.toLocaleString() || 0} votos en TMDB
-                    </p>
-                </div>
             </div>
         </div>
     `;
@@ -691,7 +648,6 @@ function closeMovieModal() {
 
 function showLoading() {
     elements.loadingIndicator.classList.remove('hidden');
-    elements.moviesGrid.innerHTML = '';
 }
 
 function hideLoading() {
@@ -720,7 +676,6 @@ function hideEmptyState() {
 function showError(message) {
     hideLoading();
     hideEmptyState();
-    hideSectionHeader();
     elements.errorState.classList.remove('hidden');
     elements.errorMessage.textContent = message;
 }
@@ -729,30 +684,11 @@ function hideError() {
     elements.errorState.classList.add('hidden');
 }
 
-function hideHero() {
-    elements.heroSection.classList.add('hidden');
-}
-
-function showHero() {
-    elements.heroSection.classList.remove('hidden');
-}
-
-function retryLastAction() {
-    if (!lastAction) return;
-
-    switch (lastAction.type) {
-        case 'search':
-            searchMovies(lastAction.query);
-            break;
-        case 'popular':
-            getPopularMovies();
-            break;
-    }
-}
-
 // ===== Event Listeners =====
 
-// Search functionality
+elements.addToRankingBtn?.addEventListener('click', openSearchModal);
+elements.rankingBtn?.addEventListener('click', showRanking);
+
 elements.searchBtn?.addEventListener('click', () => {
     searchMovies(elements.searchInput.value);
 });
@@ -763,22 +699,6 @@ elements.searchInput?.addEventListener('keypress', (e) => {
     }
 });
 
-elements.searchBtnMobile?.addEventListener('click', () => {
-    searchMovies(elements.searchInputMobile.value);
-});
-
-elements.searchInputMobile?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        searchMovies(elements.searchInputMobile.value);
-    }
-});
-
-// Navigation buttons
-elements.exploreBtn?.addEventListener('click', getPopularMovies);
-elements.rankingBtn?.addEventListener('click', showRanking);
-elements.retryBtn?.addEventListener('click', retryLastAction);
-
-// Modal events
 elements.closeModal?.addEventListener('click', closeMovieModal);
 elements.movieModal?.addEventListener('click', (e) => {
     if (e.target === elements.movieModal) {
@@ -786,15 +706,11 @@ elements.movieModal?.addEventListener('click', (e) => {
     }
 });
 
-// Keyboard navigation
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        if (!elements.movieModal.classList.contains('hidden')) {
-            closeMovieModal();
-        }
-        if (!elements.sidebar.classList.contains('hidden')) {
-            closeSidebar();
-        }
+        if (!elements.movieModal.classList.contains('hidden')) closeMovieModal();
+        if (!elements.sidebar.classList.contains('hidden')) closeSidebar();
+        if (!elements.searchModal.classList.contains('hidden')) closeSearchModal();
     }
 });
 
