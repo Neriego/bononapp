@@ -566,8 +566,8 @@ function renderSearchResults(movies) {
                     <p class="font-medium truncate">${movie.title}</p>
                     <p class="text-sm text-gray-400">${year}</p>
                 </div>
-                <button onclick="addToRanking(${movie.id})" 
-                    class="px-4 py-2 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-accent-yellow text-dark-900'} rounded-xl text-sm font-medium"
+                <button id="addBtn-${movie.id}" onclick="addToRankingFromSearch(${movie.id}, this)" 
+                    class="w-10 h-10 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-accent-yellow text-dark-900'} rounded-full text-lg font-medium flex items-center justify-center"
                     ${inRanking ? 'disabled' : ''}
                 >
                     ${inRanking ? '✓' : '+'}
@@ -581,7 +581,6 @@ function renderSearchResults(movies) {
 
 async function addToRanking(movieId) {
     if (rankingData.some(m => m.id === movieId)) {
-        alert('Esta película ya está en el ranking');
         return;
     }
 
@@ -606,8 +605,20 @@ async function addToRanking(movieId) {
     if (rankingRef) {
         await rankingRef.child(movie.id.toString()).set(movieData);
     }
+}
 
-    showHomeView();
+async function addToRankingFromSearch(movieId, buttonElement) {
+    if (rankingData.some(m => m.id === movieId)) {
+        return;
+    }
+
+    // Update button immediately
+    buttonElement.innerHTML = '✓';
+    buttonElement.classList.remove('bg-accent-yellow', 'text-dark-900');
+    buttonElement.classList.add('bg-gray-600', 'text-gray-400');
+    buttonElement.disabled = true;
+
+    await addToRanking(movieId);
 }
 
 async function removeFromRanking(movieId) {
