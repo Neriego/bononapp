@@ -465,7 +465,35 @@ function renderWishlistGrid() {
         return;
     }
 
-    elements.wishlistGrid.innerHTML = myMovies.map((movie, index) => createMovieCard(movie, index + 1)).join('');
+    elements.wishlistGrid.innerHTML = myMovies.map((movie, index) => createWishlistMovieCard(movie, index + 1)).join('');
+}
+
+function createWishlistMovieCard(movie, rank) {
+    const userVotes = movie.votedBy?.[currentUser] || 0;
+
+    return `
+        <div class="bg-dark-700 rounded-xl overflow-hidden" onclick="showMovieDetail(${movie.id})">
+            <div class="relative">
+                ${movie.poster_path
+            ? `<img src="${API_CONFIG.imageBaseUrl}/w300${movie.poster_path}" alt="${movie.title}" class="w-full h-56 object-cover">`
+            : `<div class="w-full h-56 bg-dark-600 flex items-center justify-center text-4xl">🎬</div>`
+        }
+                <div class="absolute top-2 left-2 w-8 h-8 bg-accent-yellow text-dark-900 rounded-full flex items-center justify-center text-sm font-bold">
+                    #${rank}
+                </div>
+                <div class="absolute top-2 right-2 px-2 py-1 bg-dark-900/80 rounded-lg text-xs flex items-center gap-1">
+                    <span class="text-yellow-400">★</span> ${movie.votes || 0}
+                </div>
+            </div>
+            <div class="p-3">
+                <h3 class="font-medium truncate mb-2">${movie.title}</h3>
+                <button onclick="event.stopPropagation(); voteForMovie(${movie.id})" 
+                    class="w-full py-2 ${userVotes > 0 ? 'bg-gray-600/50 text-gray-400' : 'bg-gray-600 text-white hover:bg-gray-500'} rounded-lg text-sm font-medium transition-colors">
+                    ${userVotes > 0 ? '✓ Votada' : 'Votar'}
+                </button>
+            </div>
+        </div>
+    `;
 }
 
 // ===== Movie Detail =====
