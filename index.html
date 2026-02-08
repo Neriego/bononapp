@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BononaMovie | Pelis para Ver Juntos 🍿</title>
+    <meta name="description" content="App de películas para Ger y Magui. Favoritos, ranking y votos semanales.">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/jpeg" href="logo.jpg">
+    <link rel="shortcut icon" type="image/jpeg" href="logo.jpg">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#a855f7">
+
+    <!-- iOS Add to Home Screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BononaMovie">
+    <link rel="apple-touch-icon" href="logo.jpg">
+
+    <!-- Android/Chrome -->
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'dark': {
+                            900: '#0a0a0f',
+                            800: '#12121a',
+                            700: '#1a1a25',
+                            600: '#252533',
+                        },
+                        'accent': {
+                            purple: '#a855f7',
+                            pink: '#ec4899',
+                            blue: '#3b82f6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="font-inter bg-dark-900 text-white min-h-screen overflow-x-hidden">
+    <!-- Animated Background -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-40 -right-40 w-96 h-96 bg-accent-purple/20 rounded-full blur-3xl animate-pulse"></div>
+        <div class="absolute top-1/2 -left-40 w-80 h-80 bg-accent-pink/15 rounded-full blur-3xl animate-pulse"
+            style="animation-delay: 1s;"></div>
+        <div class="absolute -bottom-40 right-1/3 w-72 h-72 bg-accent-blue/15 rounded-full blur-3xl animate-pulse"
+            style="animation-delay: 2s;"></div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-dark-900/95 backdrop-blur-xl z-[100] flex items-center justify-center">
+        <div class="glass-card p-8 max-w-sm w-full mx-4 text-center">
+            <img src="logo.jpg" alt="BononaMovie"
+                class="w-24 h-24 rounded-2xl mx-auto mb-6 object-cover shadow-lg shadow-accent-purple/30">
+            <h2 class="text-2xl font-bold mb-2">¡Hola! 👋</h2>
+            <p class="text-gray-400 mb-8">¿Quién va a elegir pelis hoy?</p>
+
+            <div class="flex flex-col gap-3">
+                <button onclick="login('Ger')"
+                    class="w-full py-4 bg-gradient-to-r from-accent-purple to-accent-pink rounded-2xl font-semibold hover:scale-105 hover:shadow-lg hover:shadow-accent-purple/25 transition-all duration-300">
+                    🎬 Soy Ger
+                </button>
+                <button onclick="login('Magui')"
+                    class="w-full py-4 bg-gradient-to-r from-accent-pink to-accent-purple rounded-2xl font-semibold hover:scale-105 hover:shadow-lg hover:shadow-accent-pink/25 transition-all duration-300">
+                    🍿 Soy Magui
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <div id="sidebar" class="fixed inset-0 z-[80] hidden">
+        <div class="absolute inset-0 bg-dark-900/80 backdrop-blur-sm" onclick="closeSidebar()"></div>
+        <div
+            class="sidebar-content absolute left-0 top-0 h-full w-72 bg-dark-800 border-r border-white/10 p-6 transform -translate-x-full transition-transform duration-300">
+            <!-- User Info -->
+            <div class="flex items-center gap-3 mb-8 pb-6 border-b border-white/10">
+                <img src="logo.jpg" alt="BononaMovie" class="w-12 h-12 rounded-xl object-cover">
+                <div>
+                    <p id="sidebarUsername" class="font-semibold"></p>
+                    <p id="sidebarVotes" class="text-sm text-accent-purple"></p>
+                </div>
+            </div>
+
+            <!-- Menu Items -->
+            <nav class="space-y-2">
+                <button onclick="goHome(); closeSidebar();"
+                    class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left">
+                    <svg class="w-5 h-5 text-accent-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
+                        </path>
+                    </svg>
+                    <span>Inicio</span>
+                </button>
+                <button onclick="showFavorites(); closeSidebar();"
+                    class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left">
+                    <svg class="w-5 h-5 text-accent-pink" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                    <span>Favoritas</span>
+                    <span id="favoritesCount"
+                        class="ml-auto px-2 py-0.5 bg-accent-pink/20 text-accent-pink text-xs rounded-full">0</span>
+                </button>
+                <button onclick="showRanking(); closeSidebar();"
+                    class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors text-left">
+                    <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                    <span>Ranking</span>
+                    <span id="rankingCount"
+                        class="ml-auto px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs rounded-full">0</span>
+                </button>
+            </nav>
+
+            <!-- Logout -->
+            <div class="absolute bottom-6 left-6 right-6">
+                <button onclick="logout()"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-dark-700 border border-white/10 rounded-xl hover:bg-dark-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1">
+                        </path>
+                    </svg>
+                    Cambiar Usuario
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="mainContent" class="relative z-10 hidden">
+        <!-- Header -->
+        <header class="border-b border-white/5 backdrop-blur-xl bg-dark-900/50 sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 md:px-6 py-4">
+                <div class="flex items-center justify-between gap-4">
+                    <!-- Hamburger Menu (Mobile) -->
+                    <button id="hamburgerBtn" onclick="openSidebar()"
+                        class="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-dark-700/50 border border-white/10">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Logo -->
+                    <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
+                        <img src="logo.jpg" alt="BononaMovie" class="w-10 h-10 rounded-xl object-cover shadow-md">
+                        <h1
+                            class="text-xl md:text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                            BononaMovie
+                        </h1>
+                    </div>
+
+                    <!-- Search Bar -->
+                    <div class="flex-1 max-w-xl mx-4 hidden md:block">
+                        <div class="relative group">
+                            <div
+                                class="absolute inset-0 bg-gradient-to-r from-accent-purple/50 to-accent-pink/50 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="relative flex items-center">
+                                <svg class="absolute left-4 w-5 h-5 text-gray-400 group-focus-within:text-accent-purple transition-colors"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                                <input type="text" id="searchInput" placeholder="Buscar películas..."
+                                    class="w-full pl-12 pr-4 py-3 bg-dark-700/80 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-accent-purple/50 focus:ring-2 focus:ring-accent-purple/20 transition-all duration-300">
+                                <button id="searchBtn"
+                                    class="absolute right-2 px-4 py-1.5 bg-gradient-to-r from-accent-purple to-accent-pink rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
+                                    Buscar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Info (Desktop) -->
+                    <div class="hidden md:flex items-center gap-4">
+                        <div id="votesIndicator"
+                            class="flex items-center gap-2 px-4 py-2 bg-dark-700/50 border border-white/10 rounded-xl">
+                            <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                            <span id="votesRemaining" class="text-sm font-medium">5 votos</span>
+                        </div>
+                        <button onclick="showFavorites()"
+                            class="w-10 h-10 flex items-center justify-center rounded-xl bg-dark-700/50 border border-white/10 hover:bg-dark-600 transition-colors"
+                            title="Favoritas">
+                            <svg class="w-5 h-5 text-accent-pink" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                            </svg>
+                        </button>
+                        <button onclick="showRanking()"
+                            class="w-10 h-10 flex items-center justify-center rounded-xl bg-dark-700/50 border border-white/10 hover:bg-dark-600 transition-colors"
+                            title="Ranking">
+                            <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                        </button>
+                        <div id="userBadge"
+                            class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-purple/20 to-accent-pink/20 border border-accent-purple/30 rounded-xl cursor-pointer"
+                            onclick="openSidebar()">
+                            <span id="headerUsername" class="text-sm font-medium"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile Search -->
+                <div class="mt-4 md:hidden">
+                    <div class="relative flex items-center">
+                        <svg class="absolute left-4 w-5 h-5 text-gray-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <input type="text" id="searchInputMobile" placeholder="Buscar películas..."
+                            class="w-full pl-12 pr-20 py-3 bg-dark-700/80 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-accent-purple/50 transition-all duration-300">
+                        <button id="searchBtnMobile"
+                            class="absolute right-2 px-4 py-1.5 bg-gradient-to-r from-accent-purple to-accent-pink rounded-xl text-sm font-medium">
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section id="heroSection" class="relative py-16 md:py-20 px-4 md:px-6">
+            <div class="max-w-7xl mx-auto text-center">
+                <div
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-dark-700/50 border border-white/10 rounded-full mb-6">
+                    <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                    <span id="welcomeUser" class="text-sm text-gray-400">¡Hola!</span>
+                </div>
+                <h2 class="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+                    ¿Qué vemos
+                    <span
+                        class="bg-gradient-to-r from-accent-purple via-accent-pink to-accent-blue bg-clip-text text-transparent">
+                        hoy?
+                    </span>
+                </h2>
+                <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10">
+                    Buscá películas, agregálas a favoritos y votá las que quieras ver. ¡Tienen 5 votos por semana cada
+                    uno! 🗳️
+                </p>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button id="exploreBtn"
+                        class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-accent-purple to-accent-pink rounded-2xl font-semibold hover:scale-105 hover:shadow-lg hover:shadow-accent-purple/25 transition-all duration-300">
+                        🔍 Explorar Películas
+                    </button>
+                    <button id="rankingBtn"
+                        class="w-full sm:w-auto px-8 py-4 bg-dark-700 border border-white/10 rounded-2xl font-semibold hover:bg-dark-600 hover:border-white/20 transition-all duration-300">
+                        🏆 Ver Ranking
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator"
+            class="hidden fixed inset-0 bg-dark-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div class="flex flex-col items-center gap-4">
+                <div
+                    class="w-16 h-16 border-4 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin">
+                </div>
+                <p class="text-gray-400">Cargando películas...</p>
+            </div>
+        </div>
+
+        <!-- Movies Section -->
+        <section class="py-8 md:py-12 px-4 md:px-6">
+            <div class="max-w-7xl mx-auto">
+                <!-- Section Header -->
+                <div id="sectionHeader" class="hidden mb-8">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h3 id="sectionTitle" class="text-2xl md:text-3xl font-bold mb-2">Resultados</h3>
+                            <p id="sectionSubtitle" class="text-gray-400"></p>
+                        </div>
+                        <div id="resultsCount"
+                            class="px-4 py-2 bg-dark-700/50 border border-white/10 rounded-xl text-sm text-gray-400">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Movies Grid -->
+                <div id="moviesGrid"
+                    class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                    <!-- Movie cards will be injected here -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="hidden py-20 text-center">
+                    <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-dark-700/50 flex items-center justify-center">
+                        <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h4 class="text-xl font-semibold mb-2">No se encontraron películas</h4>
+                    <p class="text-gray-500 mb-6">Intenta con otra búsqueda</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="errorState" class="hidden py-20 text-center">
+                    <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
+                        <svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h4 class="text-xl font-semibold mb-2 text-red-400">Error al cargar</h4>
+                    <p id="errorMessage" class="text-gray-500 mb-6">Hubo un problema al obtener los datos</p>
+                    <button id="retryBtn"
+                        class="px-6 py-3 bg-dark-700 border border-white/10 rounded-xl font-medium hover:bg-dark-600 transition-colors">
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Movie Detail Modal -->
+        <div id="movieModal" class="hidden fixed inset-0 bg-dark-900/90 backdrop-blur-xl z-50 overflow-y-auto">
+            <div class="min-h-screen px-4 md:px-6 py-12 flex items-center justify-center">
+                <div class="relative w-full max-w-4xl">
+                    <button id="closeModal"
+                        class="absolute -top-4 -right-4 w-12 h-12 bg-dark-700 border border-white/10 rounded-full flex items-center justify-center hover:bg-dark-600 transition-colors z-10">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                    <div id="modalContent" class="glass-card overflow-hidden">
+                        <!-- Modal content will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="border-t border-white/5 py-8 px-4 md:px-6 mt-12">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="logo.jpg" alt="BononaMovie" class="w-8 h-8 rounded-lg object-cover">
+                    <span class="text-sm text-gray-500">BononaMovie © 2026 - Hecho con 💜 por Ger & Magui</span>
+                </div>
+                <p class="text-sm text-gray-500">
+                    Datos de
+                    <a href="https://www.themoviedb.org/" target="_blank"
+                        class="text-accent-purple hover:underline">TMDB</a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
