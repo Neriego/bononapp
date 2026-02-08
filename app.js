@@ -134,6 +134,34 @@ function updateVotesChip(remaining) {
 
 // ===== Navigation =====
 
+window.addEventListener('popstate', (event) => {
+    const state = event.state;
+    if (state) {
+        restoreView(state);
+    } else {
+        showHomeView(false);
+    }
+});
+
+function navigateBack() {
+    if (window.history.length > 1) {
+        window.history.back();
+    } else {
+        showHomeView(true);
+    }
+}
+
+function restoreView(state) {
+    switch (state.view) {
+        case 'search': showSearchView(false); break;
+        case 'ranking': showRankingView(false); break;
+        case 'wishlist': showWishlistView(false); break;
+        case 'profile': showProfileView(false); break;
+        case 'movie': showMovieDetail(state.movieId, false); break;
+        default: showHomeView(false);
+    }
+}
+
 function hideAllViews() {
     elements.homeView.classList.add('hidden');
     elements.searchView.classList.add('hidden');
@@ -148,7 +176,8 @@ function hideAllViews() {
     });
 }
 
-function showHomeView() {
+function showHomeView(pushState = true) {
+    if (pushState) history.pushState({ view: 'home' }, '', '#home');
     hideAllViews();
     elements.homeView.classList.remove('hidden');
     document.getElementById('navHome').classList.remove('text-gray-500');
@@ -156,7 +185,8 @@ function showHomeView() {
     updateHomeView();
 }
 
-function showSearchView() {
+function showSearchView(pushState = true) {
+    if (pushState) history.pushState({ view: 'search' }, '', '#search');
     hideAllViews();
     elements.searchView.classList.remove('hidden');
     document.getElementById('navSearch').classList.remove('text-gray-500');
@@ -165,20 +195,22 @@ function showSearchView() {
 }
 
 function hideSearchView() {
-    showHomeView();
+    navigateBack();
 }
 
-function showRankingView() {
+function showRankingView(pushState = true) {
+    if (pushState) history.pushState({ view: 'ranking' }, '', '#ranking');
     hideAllViews();
     elements.rankingView.classList.remove('hidden');
     renderRankingGrid();
 }
 
 function hideRankingView() {
-    showHomeView();
+    navigateBack();
 }
 
-function showWishlistView() {
+function showWishlistView(pushState = true) {
+    if (pushState) history.pushState({ view: 'wishlist' }, '', '#wishlist');
     hideAllViews();
     elements.wishlistView.classList.remove('hidden');
     document.getElementById('navWishlist').classList.remove('text-gray-500');
@@ -186,7 +218,8 @@ function showWishlistView() {
     renderWishlistGrid();
 }
 
-function showProfileView() {
+function showProfileView(pushState = true) {
+    if (pushState) history.pushState({ view: 'profile' }, '', '#profile');
     hideAllViews();
     elements.profileView.classList.remove('hidden');
     document.getElementById('navProfile').classList.remove('text-gray-500');
@@ -194,7 +227,8 @@ function showProfileView() {
     updateProfileView();
 }
 
-function showMovieDetail(movieId) {
+function showMovieDetail(movieId, pushState = true) {
+    if (pushState) history.pushState({ view: 'movie', movieId }, '', `#movie-${movieId}`);
     hideAllViews();
     elements.movieDetailView.classList.remove('hidden');
     loadMovieDetail(movieId);
