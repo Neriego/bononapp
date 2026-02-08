@@ -480,9 +480,15 @@ function renderMovieDetail(movie) {
             <!-- Action Buttons -->
             <div class="flex gap-3 mb-6">
                 ${isInRanking ? `
-                    <button onclick="voteForMovie(${movie.id})" class="flex-1 py-3 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400' : 'bg-accent-purple'} rounded-xl font-semibold">
-                        ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
-                    </button>
+                    <div class="flex-1 flex items-center justify-center gap-4 py-3 bg-dark-700 rounded-xl">
+                        <button onclick="removeVoteFromMovie(${movie.id})" class="w-10 h-10 bg-red-500/20 text-red-400 rounded-full font-bold text-xl flex items-center justify-center">
+                            −
+                        </button>
+                        <span class="text-xl font-bold text-accent-yellow min-w-[60px] text-center">${rankingMovie?.votes || 0} votos</span>
+                        <button onclick="voteForMovie(${movie.id})" class="w-10 h-10 bg-green-500/20 text-green-400 rounded-full font-bold text-xl flex items-center justify-center">
+                            +
+                        </button>
+                    </div>
                     <button onclick="removeFromRanking(${movie.id})" class="px-4 py-3 bg-red-500/20 text-red-400 rounded-xl">
                         🗑️
                     </button>
@@ -566,9 +572,8 @@ function renderSearchResults(movies) {
                     <p class="font-medium truncate">${movie.title}</p>
                     <p class="text-sm text-gray-400">${year}</p>
                 </div>
-                <button id="addBtn-${movie.id}" onclick="addToRankingFromSearch(${movie.id}, this)" 
-                    class="w-10 h-10 ${inRanking ? 'bg-gray-600 text-gray-400' : 'bg-accent-yellow text-dark-900'} rounded-full text-lg font-medium flex items-center justify-center"
-                    ${inRanking ? 'disabled' : ''}
+                <button id="addBtn-${movie.id}" onclick="toggleRankingFromSearch(${movie.id}, this)" 
+                    class="w-10 h-10 ${inRanking ? 'bg-gray-600 text-white' : 'bg-accent-yellow text-dark-900'} rounded-full text-lg font-medium flex items-center justify-center"
                 >
                     ${inRanking ? '✓' : '+'}
                 </button>
@@ -607,18 +612,24 @@ async function addToRanking(movieId) {
     }
 }
 
-async function addToRankingFromSearch(movieId, buttonElement) {
-    if (rankingData.some(m => m.id === movieId)) {
-        return;
+async function toggleRankingFromSearch(movieId, buttonElement) {
+    const inRanking = rankingData.some(m => m.id === movieId);
+
+    if (inRanking) {
+        // Remove from ranking
+        if (rankingRef) {
+            await rankingRef.child(movieId.toString()).remove();
+        }
+        buttonElement.innerHTML = '+';
+        buttonElement.classList.remove('bg-gray-600', 'text-white');
+        buttonElement.classList.add('bg-accent-yellow', 'text-dark-900');
+    } else {
+        // Add to ranking
+        buttonElement.innerHTML = '✓';
+        buttonElement.classList.remove('bg-accent-yellow', 'text-dark-900');
+        buttonElement.classList.add('bg-gray-600', 'text-white');
+        await addToRanking(movieId);
     }
-
-    // Update button immediately
-    buttonElement.innerHTML = '✓';
-    buttonElement.classList.remove('bg-accent-yellow', 'text-dark-900');
-    buttonElement.classList.add('bg-gray-600', 'text-gray-400');
-    buttonElement.disabled = true;
-
-    await addToRanking(movieId);
 }
 
 async function removeFromRanking(movieId) {
@@ -676,6 +687,49 @@ async function voteForMovie(movieId) {
             votedBy: votedBy
         });
     }
+
+    // Refresh movie detail if we're viewing it
+    loadMovieDetail(movieId);
+}
+
+async function removeVoteFromMovie(movieId) {
+    if (!currentUser || !votesRef || !rankingRef) return;
+
+    const movieSnapshot = await rankingRef.child(movieId.toString()).once('value');
+    const movie = movieSnapshot.val();
+
+    if (!movie || (movie.votes || 0) <= 0) {
+        return;
+    }
+
+    const currentWeek = getCurrentWeek();
+
+    // Return vote to user
+    const userVotesSnapshot = await votesRef.child(currentUser).once('value');
+    let userData = userVotesSnapshot.val() || { week: currentWeek, remaining: 5 };
+
+    if (userData.week !== currentWeek) {
+        userData = { week: currentWeek, remaining: 5 };
+    }
+
+    await votesRef.child(currentUser).set({
+        week: currentWeek,
+        remaining: userData.remaining + 1
+    });
+
+    // Decrease movie votes
+    const votedBy = movie.votedBy || {};
+    if (votedBy[currentUser] && votedBy[currentUser] > 0) {
+        votedBy[currentUser] = votedBy[currentUser] - 1;
+    }
+
+    await rankingRef.child(movieId.toString()).update({
+        votes: Math.max(0, (movie.votes || 0) - 1),
+        votedBy: votedBy
+    });
+
+    // Refresh movie detail
+    loadMovieDetail(movieId);
 }
 
 async function adjustVotes(username, amount) {
