@@ -440,6 +440,8 @@ function renderRankingGrid() {
         return;
     }
 
+    elements.rankingGrid.classList.remove('grid', 'grid-cols-2', 'gap-3');
+    elements.rankingGrid.classList.add('flex', 'flex-col', 'gap-4');
     elements.rankingGrid.innerHTML = movies.map((movie, index) => createMovieCard(movie, index + 1)).join('');
 }
 
@@ -461,30 +463,58 @@ function setRankingFilter(filter) {
 
 function createMovieCard(movie, rank) {
     const userVotes = movie.votedBy?.[currentUser] || 0;
+    const year = movie.release_date ? new Date(movie.release_date).getFullYear() : '';
+    const canVote = userVotes === 0;
+
+    // Use backdrop if available for landscape look, otherwise fallback to poster
+    const imageUrl = movie.backdrop_path
+        ? `${API_CONFIG.imageBaseUrl}/w300${movie.backdrop_path}`
+        : (movie.poster_path ? `${API_CONFIG.imageBaseUrl}/w342${movie.poster_path}` : null);
 
     return `
-        <div class="bg-dark-700 rounded-xl overflow-hidden" onclick="showMovieDetail(${movie.id})">
-            <div class="relative">
-                ${movie.poster_path
-            ? `<img src="${API_CONFIG.imageBaseUrl}/w300${movie.poster_path}" alt="${movie.title}" class="w-full h-56 object-cover">`
-            : `<div class="w-full h-56 bg-dark-600 flex items-center justify-center text-4xl">🎬</div>`
+        <div class="flex items-center gap-4 bg-dark-800/50 rounded-xl overflow-hidden p-3 active:bg-dark-700 transition-colors" onclick="showMovieDetail(${movie.id})">
+            <!-- Image with Rank -->
+            <div class="relative flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden">
+                ${imageUrl
+            ? `<img src="${imageUrl}" alt="${movie.title}" class="w-full h-full object-cover">`
+            : `<div class="w-full h-full bg-dark-600 flex items-center justify-center text-2xl">🎬</div>`
         }
-                <div class="absolute top-2 left-2 w-8 h-8 bg-accent-yellow text-dark-900 rounded-full flex items-center justify-center text-sm font-bold">
+                <div class="absolute top-1 left-1 w-6 h-6 bg-accent-yellow text-dark-900 rounded-md flex items-center justify-center text-xs font-bold shadow-lg">
                     #${rank}
                 </div>
-                <div class="absolute top-2 right-2 px-2 py-1 bg-dark-900/80 rounded-lg text-xs flex items-center gap-1">
-                    <span class="text-yellow-400">★</span> ${movie.votes || 0}
+            </div>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+                <p class="text-xs text-gray-500 mb-0.5">${year}</p>
+                <h3 class="font-bold text-white truncate text-base mb-1 leading-tight">${movie.title}</h3>
+                <div class="flex items-center gap-1 text-accent-yellow text-sm">
+                    <span>★</span>
+                    <span class="font-bold">${movie.votes || 0}</span>
+                    <span class="text-xs text-gray-500 font-normal">votos</span>
                 </div>
             </div>
-            <div class="p-3">
-                <h3 class="font-medium truncate mb-2">${movie.title}</h3>
-                <button onclick="event.stopPropagation(); voteForMovie(${movie.id})" 
-                    class="w-full py-2 ${userVotes > 0 ? 'bg-yellow-400/20 text-yellow-400' : 'bg-accent-purple/20 text-accent-purple'} rounded-lg text-sm font-medium">
-                    ${userVotes > 0 ? `⭐ Votada (${userVotes})` : '🗳️ Votar'}
-                </button>
+
+            <!-- Action -->
+            <div class="flex-shrink-0" onclick="event.stopPropagation()">
+                ${canVote ? `
+                    <button onclick="voteForMovieFromList(${movie.id}, this)" class="w-10 h-10 bg-accent-yellow/10 text-accent-yellow rounded-full flex items-center justify-center text-xl font-bold hover:bg-accent-yellow hover:text-dark-900 transition-colors">
+                        +
+                    </button>
+                ` : `
+                    <div class="w-10 h-10 flex items-center justify-center text-green-500 font-bold text-xl">
+                        ✓
+                    </div>
+                `}
             </div>
         </div>
     `;
+}
+
+async function voteForMovieFromList(movieId, btnElement) {
+    // Add 1 vote then force detail for more
+    await voteForMovie(movieId);
+    renderRankingGrid();
 }
 
 // ===== Wishlist (My Added Movies) =====
